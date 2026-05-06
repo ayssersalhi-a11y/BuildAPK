@@ -1,0 +1,44 @@
+name: "Build Khayel Game"
+on: [push, pull_request]
+
+jobs:
+  export_android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # تحميل المحرك - تأكد أن الإصدار 4.2.1 متوافق مع البلجن الذي صنعناه
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.2.1
+
+      # تثبيت القوالب (Templates) اللازمة للبناء
+      - name: Install Templates
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/4.2.1.stable
+          wget https://downloads.tuxfamily.org/godotengine/4.2.1/Godot_v4.2.1-stable_export_templates.tpz
+          unzip Godot_v4.2.1-stable_export_templates.tpz
+          mv templates/* ~/.local/share/godot/export_templates/4.2.1.stable/
+          rm Godot_v4.2.1-stable_export_templates.tpz
+
+      # بناء التطبيق
+      # ملاحظة: تم استخدام "Android (Runnable)" لأنه الاسم الظاهر في صورك
+      - name: Build APK
+        run: |
+          mkdir -v -p build/android
+          cd khayel && godot --headless --export-release "Android (Runnable)" ../build/android/Khayel_Final.apk
+
+      # رفع الملف الناتج لكي تتمكن من تحميله من تبويب Actions
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Khayel_Build_Result
+          path: build/android/*.apk
