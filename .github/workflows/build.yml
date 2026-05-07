@@ -78,42 +78,45 @@ jobs:
 
 
       - name: Auto-Patch Project Files
+  
         run: |
-          # 1. تحديد المسارات
           PROJECT_ROOT="khayel"
           GD_PATH="$PROJECT_ROOT/addons/gdffmpeg"
           
-          # 2. البحث عن المكتبة والحصول على مسارها بالنسبة لـ res://
-          # سنبحث عن الملف ونستخرج مساره النسبي داخل المشروع
+          # 1. البحث عن المكتبة
           SO_FULL_PATH=$(find "$PROJECT_ROOT" -iname "libgdffmpeg.android.arm64.so" | head -n 1)
           
           if [ ! -z "$SO_FULL_PATH" ]; then
-            # تحويل المسار من نظام الملفات إلى مسار Godot (res://)
-            # مثال: khayel/addons/gdffmpeg/bin/file.so -> res://addons/gdffmpeg/bin/file.so
+            # تحويل المسار لمسار Godot
             GODOT_RES_PATH=$(echo "$SO_FULL_PATH" | sed "s|^$PROJECT_ROOT/|res://|")
-            echo "✅ تم تحديد مسار المكتبة للمحرك: $GODOT_RES_PATH"
+            echo "✅ المكتبة موجودة في: $GODOT_RES_PATH"
             
-            # إعطاء صلاحيات كاملة للملف (مهم جداً للـ Dynamic Library)
-            chmod -R 777 "$PROJECT_ROOT/addons"
+            # الخطوة السحرية: حذف أي ملف .import قديم للمكتبة لنجبر المحرك على إعادة استيرادها
+            find "$PROJECT_ROOT" -name "*.import" -iname "*libgdffmpeg*" -delete
+            
+            # إعطاء صلاحيات تنفيذ كاملة للملف وللمجلد
+            chmod 777 "$SO_FULL_PATH"
+            chmod -R 777 "$GD_PATH"
           else
-            echo "❌ خطأ: لم يتم العثور على المكتبة في أي مكان داخل $PROJECT_ROOT"
+            echo "❌ لم نجد المكتبة!"
             exit 1
           fi
 
-          # 3. إعادة كتابة ملف .gdextension بالمسار الحقيقي الذي وجدناه
-          echo "[configuration]
-          entry_symbol = \"gdffmpeg_init\"
-          compatibility_minimum = \"4.1\"
+          # 2. إعادة كتابة ملف .gdextension (تأكد من استخدام علامات تنصيص صحيحة)
+          cat <<EOF > "$GD_PATH/gdffmpeg.gdextension"
+          [configuration]
+          entry_symbol = "gdffmpeg_init"
+          compatibility_minimum = "4.1"
           [libraries]
-          linux.debug.x86_64 = \"$GODOT_RES_PATH\"
-          linux.release.x86_64 = \"$GODOT_RES_PATH\"
-          android.release.arm64 = \"$GODOT_RES_PATH\"
-          android.debug.arm64   = \"$GODOT_RES_PATH\"" > "$GD_PATH/gdffmpeg.gdextension"
+          linux.debug.x86_64 = "$GODOT_RES_PATH"
+          linux.release.x86_64 = "$GODOT_RES_PATH"
+          android.release.arm64 = "$GODOT_RES_PATH"
+          android.debug.arm64   = "$GODOT_RES_PATH"
+          EOF
 
-          # 4. ربط الـ Keystore (نفس الكود السابق لأنه ناجح)
+          # 3. ربط الـ Keystore
           KEY_FILE=$(find . -name "lamoushi.keystore.jks" | head -n 1)
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
-          
           if [ -f "$KEY_FILE" ] && [ -f "$PRESET_FILE" ]; then
             ABS_KEY=$(realpath "$KEY_FILE")
             sed -i "s|keystore/debug=.*|keystore/debug=\"$ABS_KEY\"|g" "$PRESET_FILE"
@@ -121,14 +124,9 @@ jobs:
             sed -i 's|keystore/debug_password=.*|keystore/debug_password="lamoushi2026"|g' "$PRESET_FILE"
             sed -i 's/package\/signed=false/package\/signed=true/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/use_gradle_build=false/gradle_build\/use_gradle_build=true/g' "$PRESET_FILE"
-            sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
-            sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
             sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
-            echo "✅ تم ضبط كل شيء بنجاح."
-          else
-            echo "❌ ملف الإعدادات أو المفاتيح مفقود!"
-            exit 1
           fi
+
 
 
 
