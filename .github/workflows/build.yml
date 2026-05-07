@@ -76,29 +76,35 @@ jobs:
             mv templates/* "$TEMPLATE_PATH/"
           fi
 
+
       - name: Auto-Patch Project Files
         run: |
           # 1. تحديد المسار المطلق للمشروع
           PROJECT_ROOT="khayel"
-          
-          # 2. إصلاح وترتيب مجلد gdffmpeg بناءً على صورك
           GD_PATH="$PROJECT_ROOT/addons/gdffmpeg"
           BIN_PATH="$GD_PATH/bin"
           
           echo "🛠️ جاري إعادة هيكلة الإضافات..."
           mkdir -p "$BIN_PATH"
           
-          # البحث عن المكتبة ونقلها لمكانها الصحيح (bin)
-          # سنستخدم البحث لضمان إيجادها حتى لو تغير مكانها أثناء فك الضغط
+          # البحث عن المكتبة ونقلها لمكانها الصحيح بذكاء لتجنب خطأ "Same File"
           SO_FILE=$(find . -name "libgdffmpeg.android.arm64.so" | head -n 1)
           if [ ! -z "$SO_FILE" ]; then
-            cp "$SO_FILE" "$BIN_PATH/libgdffmpeg.android.arm64.so"
-            echo "✅ تم وضع المكتبة في: $BIN_PATH"
+            # الحصول على المسار الكامل للمصدر والهدف للمقارنة
+            SRC=$(realpath "$SO_FILE")
+            DST=$(realpath "$BIN_PATH/libgdffmpeg.android.arm64.so")
+            
+            if [ "$SRC" != "$DST" ]; then
+              cp "$SRC" "$DST"
+              echo "✅ تم نقل المكتبة إلى مجلد bin."
+            else
+              echo "ℹ️ المكتبة موجودة بالفعل في مكانها الصحيح."
+            fi
           else
-            echo "❌ تحذير: لم يتم العثور على ملف .so في المشروع!"
+            echo "⚠️ تنبيه: لم يتم العثور على ملف المكتبة، قد يفشل التصدير."
           fi
 
-          # 3. كتابة ملف .gdextension بالمسارات التي أكدتها الصور
+          # 2. كتابة ملف .gdextension
           echo '[configuration]
           entry_symbol = "gdffmpeg_init"
           compatibility_minimum = "4.1"
@@ -108,28 +114,27 @@ jobs:
           android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"' > "$GD_PATH/gdffmpeg.gdextension"
 
-          # 4. ربط ملف lamoushi.keystore.jks الحقيقي
+          # 3. ربط ملف lamoushi.keystore.jks
           KEY_FILE=$(find . -name "lamoushi.keystore.jks" | head -n 1)
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
           
           if [ -f "$KEY_FILE" ] && [ -f "$PRESET_FILE" ]; then
             ABS_KEY=$(realpath "$KEY_FILE")
-            # تحديث بيانات التوقيع
             sed -i "s|keystore/debug=.*|keystore/debug=\"$ABS_KEY\"|g" "$PRESET_FILE"
             sed -i 's|keystore/debug_user=.*|keystore/debug_user="lamoushi_key"|g' "$PRESET_FILE"
             sed -i 's|keystore/debug_password=.*|keystore/debug_password="lamoushi2026"|g' "$PRESET_FILE"
             
-            # تفعيل الإعدادات الضرورية للتصدير
             sed -i 's/package\/signed=false/package\/signed=true/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/use_gradle_build=false/gradle_build\/use_gradle_build=true/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
-            
-            # توحيد مسار الـ APK
             sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
-            
-            echo "✅ تم ضبط ملف التصدير والمفاتيح بنجاح."
+            echo "✅ تم ضبط كل شيء بنجاح."
+          else
+            echo "❌ فشل العثور على ملف الإعدادات أو المفاتيح!"
+            exit 1
           fi
+
 
 
 
