@@ -79,32 +79,33 @@ jobs:
 
       - name: Auto-Patch Project Files
         run: |
-          # 1. تحديد المسار المطلق للمشروع
+          # 1. طباعة هيكل المجلدات للتأكد من مكان الملفات (للتصحيح)
+          echo "📂 قائمة الملفات الحالية:"
+          ls -R
+          
+          # 2. تحديد المسار المطلق للمشروع
           PROJECT_ROOT="khayel"
           GD_PATH="$PROJECT_ROOT/addons/gdffmpeg"
           BIN_PATH="$GD_PATH/bin"
           
-          echo "🛠️ جاري إعادة هيكلة الإضافات..."
+          echo "🛠️ جاري التحضير للمكتبات..."
           mkdir -p "$BIN_PATH"
           
-          # البحث عن المكتبة ونقلها لمكانها الصحيح بذكاء لتجنب خطأ "Same File"
-          SO_FILE=$(find . -name "libgdffmpeg.android.arm64.so" | head -n 1)
+          # 3. البحث عن المكتبة في كل مكان ونقلها بالقوة للمسار الصحيح
+          # نستخدم -iname لتجاهل حالة الأحرف (كبير/صغير)
+          SO_FILE=$(find . -iname "libgdffmpeg.android.arm64.so" | head -n 1)
+          
           if [ ! -z "$SO_FILE" ]; then
-            # الحصول على المسار الكامل للمصدر والهدف للمقارنة
-            SRC=$(realpath "$SO_FILE")
-            DST=$(realpath "$BIN_PATH/libgdffmpeg.android.arm64.so")
-            
-            if [ "$SRC" != "$DST" ]; then
-              cp "$SRC" "$DST"
-              echo "✅ تم نقل المكتبة إلى مجلد bin."
-            else
-              echo "ℹ️ المكتبة موجودة بالفعل في مكانها الصحيح."
-            fi
+            echo "✅ تم العثور على المكتبة في: $SO_FILE"
+            # النسخ مع استبدال أي ملف موجود
+            cp -f "$SO_FILE" "$BIN_PATH/libgdffmpeg.android.arm64.so"
+            echo "✅ تم التأكيد: المكتبة الآن في $BIN_PATH"
           else
-            echo "⚠️ تنبيه: لم يتم العثور على ملف المكتبة، قد يفشل التصدير."
+            echo "❌ خطأ فادح: لم يتم العثور على ملف المكتبة في أي مكان!"
+            exit 1
           fi
 
-          # 2. كتابة ملف .gdextension
+          # 4. إعادة كتابة ملف .gdextension بمسارات ثابتة ومضمونة
           echo '[configuration]
           entry_symbol = "gdffmpeg_init"
           compatibility_minimum = "4.1"
@@ -114,7 +115,7 @@ jobs:
           android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"' > "$GD_PATH/gdffmpeg.gdextension"
 
-          # 3. ربط ملف lamoushi.keystore.jks
+          # 5. ربط المفاتيح (Keystore)
           KEY_FILE=$(find . -name "lamoushi.keystore.jks" | head -n 1)
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
           
@@ -128,8 +129,10 @@ jobs:
             sed -i 's/gradle_build\/use_gradle_build=false/gradle_build\/use_gradle_build=true/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
+            
+            # توحيد مسار التصدير
             sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
-            echo "✅ تم ضبط كل شيء بنجاح."
+            echo "✅ تم ضبط كل شيء."
           else
             echo "❌ فشل العثور على ملف الإعدادات أو المفاتيح!"
             exit 1
