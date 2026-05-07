@@ -3,8 +3,8 @@ name: "Auto Test Drive Download"
 on:
   push:
     branches:
-      - main  # سيشتغل تلقائياً بمجرد ضغط Commit أو Push على فرع main
-  workflow_dispatch: # نترك خيار التشغيل اليدوي للطوارئ
+      - main
+  workflow_dispatch:
 
 jobs:
   test_download:
@@ -16,37 +16,42 @@ jobs:
           FILE_ID="1WqPJVISx4dlJtZHERoZQ1m_J1MyXbR7x"
           OUT_FILE="khayel.zip"
           
-          echo "🔍 يبدأ الفحص التلقائي لجلب الملف..."
-          
-          # جلب الصفحة الأولية وحفظ الكوكيز
-          wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate \
-            "https://docs.google.com/uc?export=download&id=${FILE_ID}" -O- > /tmp/confirm_page.html
-          
-          # استخراج الكود باستخدام محرك بحث أكثر دقة
-          CONFIRM=$(grep -o 'confirm=[^&\" ]*' /tmp/confirm_page.html | cut -d'=' -f2)
+          echo "🔍 محاولة السحب باستخدام الطريقة المحدثة..."
+
+          # الخطوة 1: الحصول على رابط التأكيد المباشر باستخدام curl
+          # نقوم بجلب الرابط الذي يحتوي على كلمة 'confirm' من داخل صفحة التحذير
+          CONFIRM=$(curl -sL "https://docs.google.com/uc?export=download&id=${FILE_ID}" | grep -oE 'confirm=[^&" ]+' | head -n 1)
           
           if [ -z "$CONFIRM" ]; then
-            echo "⚠️ لم نجد كود تأكيد، نحاول التحميل المباشر..."
-            wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&id=${FILE_ID}" -O $OUT_FILE
+            echo "⚠️ لم نجد كود تأكيد كالمعتاد، سنجرب طريقة استخراج الرابط الكامل..."
+            # محاولة أخرى للحصول على الرابط من زر التحميل
+            DOWNLOAD_URL="https://docs.google.com/uc?export=download&${CONFIRM}&id=${FILE_ID}"
           else
-            echo "✅ تم قنص الكود: $CONFIRM"
-            wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=${CONFIRM}&id=${FILE_ID}" -O $OUT_FILE
+            echo "✅ تم العثور على الكود: $CONFIRM"
+            DOWNLOAD_URL="https://docs.google.com/uc?export=download&${CONFIRM}&id=${FILE_ID}"
           fi
 
-          # التحقق من حجم الملف
+          # الخطوة 2: التحميل الفعلي
+          wget --no-check-certificate "$DOWNLOAD_URL" -O $OUT_FILE
+
+          # التحقق من الحجم
           SIZE=$(stat -c%s "$OUT_FILE")
           echo "📊 الحجم المستلم: $SIZE بايت"
           
           if [ "$SIZE" -lt 10000 ]; then
-            echo "❌ فشل ذريع! جوجل أرسلت صفحة تحذير بدلاً من الملف."
-            echo "--- محتوى الرد من جوجل لغرض التصحيح ---"
-            cat $OUT_FILE | head -n 50 # عرض أول 50 سطر لنفهم المشكلة
-            echo "--- نهاية المحتوى ---"
-            exit 1
-          else
-            echo "🎉 نجاح! الملف جاهز."
-            file $OUT_FILE
-            ls -lh $OUT_FILE
+            echo "❌ لا تزال جوجل ترفض. سننتقل لخطة (ب): استخدام gdown"
+            pip install gdown
+            gdown --id $FILE_ID -O $OUT_FILE
+            
+            # فحص الحجم مرة أخرى بعد gdown
+            SIZE=$(stat -c%s "$OUT_FILE")
+            echo "📊 الحجم بعد gdown: $SIZE بايت"
           fi
-          
-          rm -rf /tmp/cookies.txt /tmp/confirm_page.html
+
+          if [ "$SIZE" -gt 10000 ]; then
+            echo "🎉 نجاح! الملف تم تحميله."
+            ls -lh $OUT_FILE
+          else
+            echo "❌ حتى gdown فشل. يبدو أن الملف محمي بكلمة سر أو القيود صارمة جداً."
+            exit 1
+          fi
