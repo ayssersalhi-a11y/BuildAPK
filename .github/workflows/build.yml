@@ -6,7 +6,6 @@ on:
       - main
   workflow_dispatch: 
 
-# تعريف المتغيرات عالمياً لضمان وصول كل الخطوات إليها
 env:
   ANDROID_HOME: /home/runner/android-sdk
   GODOT_VERSION: 4.6.2
@@ -47,7 +46,6 @@ jobs:
             wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
             unzip -q commandlinetools-linux-11076708_latest.zip
             mv cmdline-tools latest
-            # استخدام المسار المطلق للـ sdkmanager
             yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "build-tools;34.0.0" "platforms;android-34"
           fi
 
@@ -76,9 +74,7 @@ jobs:
             mv templates/* "$TEMPLATE_PATH/"
           fi
 
-
       - name: Auto-Patch Project Files
-  
         run: |
           PROJECT_ROOT="khayel"
           GD_PATH="$PROJECT_ROOT/addons/gdffmpeg"
@@ -87,14 +83,13 @@ jobs:
           SO_FULL_PATH=$(find "$PROJECT_ROOT" -iname "libgdffmpeg.android.arm64.so" | head -n 1)
           
           if [ ! -z "$SO_FULL_PATH" ]; then
-            # تحويل المسار لمسار Godot
             GODOT_RES_PATH=$(echo "$SO_FULL_PATH" | sed "s|^$PROJECT_ROOT/|res://|")
             echo "✅ المكتبة موجودة في: $GODOT_RES_PATH"
             
-            # الخطوة السحرية: حذف أي ملف .import قديم للمكتبة لنجبر المحرك على إعادة استيرادها
+            # حذف الـ import القديم لضمان إعادة التعرف على المكتبة
             find "$PROJECT_ROOT" -name "*.import" -iname "*libgdffmpeg*" -delete
             
-            # إعطاء صلاحيات تنفيذ كاملة للملف وللمجلد
+            # إعطاء صلاحيات الوصول
             chmod 777 "$SO_FULL_PATH"
             chmod -R 777 "$GD_PATH"
           else
@@ -102,7 +97,7 @@ jobs:
             exit 1
           fi
 
-          # 2. إعادة كتابة ملف .gdextension (تأكد من استخدام علامات تنصيص صحيحة)
+          # 2. إنشاء ملف .gdextension بالمسار الصحيح
           cat <<EOF > "$GD_PATH/gdffmpeg.gdextension"
           [configuration]
           entry_symbol = "gdffmpeg_init"
@@ -114,7 +109,7 @@ jobs:
           android.debug.arm64   = "$GODOT_RES_PATH"
           EOF
 
-          # 3. ربط الـ Keystore
+          # 3. ربط الـ Keystore وإعدادات التصدير
           KEY_FILE=$(find . -name "lamoushi.keystore.jks" | head -n 1)
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
           if [ -f "$KEY_FILE" ] && [ -f "$PRESET_FILE" ]; then
@@ -127,52 +122,25 @@ jobs:
             sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
           fi
 
-
-
-
-
-
       - name: Create Godot Editor Settings
         run: |
           mkdir -p ~/.config/godot
-          # وضعنا المسارين القديم والجديد لضمان التعرف على الـ SDK
           echo '[gd_resource type="EditorSettings" format=3]
           [resource]
           export/android/sdk_path = "${{ env.ANDROID_HOME }}"
           export/android/android_sdk_path = "${{ env.ANDROID_HOME }}"
           export/android/jdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' > ~/.config/godot/editor_settings-4.6.tres
 
-      - name: Import Resources & Build APK
+      - name: Final Build APK
         run: |
           mkdir -p build/android
-          
-          # خطوة سحرية: تنظيف الكاش القديم للمشروع ليتعرف على المسارات الجديدة للمكتبات
+          # تنظيف الكاش لإجبار المحرك على قراءة الترقيعات الجديدة
           rm -rf khayel/.godot
           
-          echo "🔄 جاري تهيئة المشروع والموارد..."
-          # تشغيل المحرك لثوانٍ فقط لعمل Import ثم الإغلاق
-          ./godot --headless --path khayel --editor --quit || true
+          echo "🔄 جاري استيراد الموارد وتحديث المشروع..."
+          ./godot --headless --path khayel --editor --quit --verbose || true
           
           echo "🚀 بدء عملية التصدير النهائية..."
-          ./godot --headless --path khayel --export-debug "Android" build/android/Khayel_Final.apk --verbose
-
-      - name: Import Resources & Build APK
-        run: |
-          mkdir -p build/android
-          
-          # خطوة سحرية: تنظيف الكاش القديم للمشروع ليتعرف على المسارات الجديدة للمكتبات
-          rm -rf khayel/.godot
-          
-          echo "🔄 جاري تهيئة المشروع والموارد..."
-          # تشغيل المحرك لثوانٍ فقط لعمل Import ثم الإغلاق
-          ./godot --headless --path khayel --editor --quit || true
-          
-          echo "🚀 بدء عملية التصدير النهائية..."
-          ./godot --headless --path khayel --export-debug "Android" build/android/Khayel_Final.apk --verbose
-
-      - name: Build APK
-        run: |
-          mkdir -p build/android
           ./godot --headless --path khayel --export-debug "Android" build/android/Khayel_Final.apk --verbose
 
       - name: Upload APK Artifact
