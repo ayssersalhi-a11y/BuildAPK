@@ -79,41 +79,27 @@ jobs:
           PROJECT_ROOT="khayel"
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
           
-          # 1. تجهيز ملف التوقيع (نسخه من المستودع إلى مجلد المشروع)
+          # تجهيز ملف التوقيع
           KEY_SOURCE=$(find . -maxdepth 1 -name "lamoushi.keystore.jks")
           cp "$KEY_SOURCE" "$PROJECT_ROOT/lamoushi.keystore.jks"
           ABS_KEY=$(realpath "$PROJECT_ROOT/lamoushi.keystore.jks")
 
-          echo "🛠️ تنظيف مخلفات الاستيراد القديمة..."
+          echo "🛠️ تنظيف وتجهيز ملف الإعدادات..."
           find "$PROJECT_ROOT" -name "*.uid" -delete
           find "$PROJECT_ROOT" -name "*.import" -delete
 
-          # 2. ترقيع ملف export_presets.cfg
+          # إصلاح الـ Presets
           sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
           sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
           
-          # حقن التوقيع (Keystore)
           sed -i '/keystore\/debug/d' "$PRESET_FILE"
           sed -i '/keystore\/release/d' "$PRESET_FILE"
           sed -i "/package\/signed=true/a keystore/debug=\"$ABS_KEY\"\nkeystore/debug_user=\"lamoushi_key\"\nkeystore/debug_password=\"lamoushi2026\"\nkeystore/release=\"$ABS_KEY\"\nkeystore/release_user=\"lamoushi_key\"\nkeystore/release_password=\"lamoushi2026\"" "$PRESET_FILE"
           
-          # تفعيل المعماريات
           sed -i 's/architectures\/arm64-v8a=false/architectures\/arm64-v8a=true/g' "$PRESET_FILE"
           sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
 
-          # 3. تحديث ملف gdffmpeg.gdextension مع دعم Linux للتمويه
-          SO_RES_PATH="res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
-          cat <<EOF > "$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
-          [configuration]
-          entry_symbol = "gdffmpeg_init"
-          compatibility_minimum = "4.1"
-          [libraries]
-          linux.debug.x86_64 = "$SO_RES_PATH"
-          linux.release.x86_64 = "$SO_RES_PATH"
-          android.release.arm64 = "$SO_RES_PATH"
-          android.debug.arm64   = "$SO_RES_PATH"
-          EOF
-          echo "✅ تم Patch جميع الملفات بنجاح."
+          # سنقوم بإنشاء ملف الـ gdextension لاحقاً في خطوة البناء
 
       - name: Create Godot Editor Settings
         run: |
@@ -130,15 +116,26 @@ jobs:
       - name: Final Build APK
         run: |
           mkdir -p build/android
-          rm -rf khayel/.godot
+          PROJECT_ROOT="khayel"
+          GD_EXT_PATH="$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
           
-          echo "🔄 المرحلة 1: إعادة استيراد الموارد..."
-          ./godot --headless --path khayel --editor --quit --verbose || true
+          echo "🔄 الخطوة 1: استيراد أولي صامت (بدون الملحق لتجنب أخطاء Linux)..."
+          rm -f "$GD_EXT_PATH"
+          ./godot --headless --path "$PROJECT_ROOT" --editor --quit --verbose || true
           
-          sleep 5
-          
-          echo "🚀 المرحلة 2: تصدير APK النهائي..."
-          ./godot --headless --path khayel --export-debug "Android" build/android/Khayel_Final.apk --verbose
+          echo "🛠️ الخطوة 2: إعادة إنشاء ملف GDExtension للأندرويد فقط..."
+          cat <<EOF > "$GD_EXT_PATH"
+          [configuration]
+          entry_symbol = "gdffmpeg_init"
+          compatibility_minimum = "4.1"
+          [libraries]
+          android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          EOF
+
+          echo "🚀 الخطوة 3: التصدير المباشر..."
+          # سنستخدم خيار --no-window لزيادة الاستقرار
+          ./godot --headless --path "$PROJECT_ROOT" --export-debug "Android" build/android/Khayel_Final.apk --verbose
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
