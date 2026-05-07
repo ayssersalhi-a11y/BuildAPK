@@ -77,28 +77,44 @@ jobs:
       - name: Auto-Patch Project Files
         run: |
           PROJECT_ROOT="khayel"
-          GD_PATH="$PROJECT_ROOT/addons/gdffmpeg"
+          PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
           
-          # 1. البحث عن المكتبة
-          SO_FULL_PATH=$(find "$PROJECT_ROOT" -iname "libgdffmpeg.android.arm64.so" | head -n 1)
+          # البحث عن مكان ملف الـ JKS (موجود في الجذر حسب الصورة)
+          KEY_FILE=$(find . -maxdepth 1 -name "lamoushi.keystore.jks")
           
-          if [ ! -z "$SO_FULL_PATH" ]; then
-            GODOT_RES_PATH=$(echo "$SO_FULL_PATH" | sed "s|^$PROJECT_ROOT/|res://|")
-            echo "✅ المكتبة موجودة في: $GODOT_RES_PATH"
+          if [ -f "$PRESET_FILE" ] && [ ! -z "$KEY_FILE" ]; then
+            ABS_KEY=$(realpath "$KEY_FILE")
+            echo "🛠️ جاري حقن الإعدادات في $PRESET_FILE..."
+
+            # 1. إصلاح قيم الـ SDK (كانت فارغة في ملفك)
+            sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
+            sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
+
+            # 2. حقن إعدادات التوقيع (Keystore) - سنضيفها في نهاية قسم الخيارات
+            # استخدمت أسلوب الحذف والإضافة لضمان عدم التكرار
+            sed -i '/keystore\/debug/d' "$PRESET_FILE"
+            sed -i '/keystore\/release/d' "$PRESET_FILE"
             
-            # حذف الـ import القديم لضمان إعادة التعرف على المكتبة
-            find "$PROJECT_ROOT" -name "*.import" -iname "*libgdffmpeg*" -delete
-            
-            # إعطاء صلاحيات الوصول
-            chmod 777 "$SO_FULL_PATH"
-            chmod -R 777 "$GD_PATH"
+            # إضافة الأسطر الجديدة بعد سطر معمارية الـ arm64 لضمان مكانها الصحيح
+            sed -i "/architectures\/arm64-v8a=true/a keystore/debug=\"$ABS_KEY\"\nkeystore/debug_user=\"lamoushi_key\"\nkeystore/debug_password=\"lamoushi2026\"\nkeystore/release=\"$ABS_KEY\"\nkeystore/release_user=\"lamoushi_key\"\nkeystore/release_password=\"lamoushi2026\"" "$PRESET_FILE"
+
+            # 3. تعديل مسار التصدير ليكون متوافقاً مع مجلد البناء في GitHub
+            sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
+
+            echo "✅ تم تحديث ملف التصدير بالكامل."
           else
-            echo "❌ لم نجد المكتبة!"
+            echo "❌ فشل: لم يتم العثور على الإعدادات أو ملف lamoushi.keystore.jks"
             exit 1
           fi
 
-          # 2. إنشاء ملف .gdextension بالمسار الصحيح
-          cat <<EOF > "$GD_PATH/gdffmpeg.gdextension"
+          # إعداد الـ GDExtension بناءً على مكان ملف الـ .so في صورك
+          GD_PATH="$PROJECT_ROOT/addons/gdffmpeg"
+          # الملف موجود في addons/gdffmpeg/bin/ حسب الصورة الثانية
+          SO_FILE="$GD_PATH/bin/libgdffmpeg.android.arm64.so"
+          
+          if [ -f "$SO_FILE" ]; then
+            GODOT_RES_PATH="res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+            cat <<EOF > "$GD_PATH/gdffmpeg.gdextension"
           [configuration]
           entry_symbol = "gdffmpeg_init"
           compatibility_minimum = "4.1"
@@ -108,19 +124,9 @@ jobs:
           android.release.arm64 = "$GODOT_RES_PATH"
           android.debug.arm64   = "$GODOT_RES_PATH"
           EOF
-
-          # 3. ربط الـ Keystore وإعدادات التصدير
-          KEY_FILE=$(find . -name "lamoushi.keystore.jks" | head -n 1)
-          PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
-          if [ -f "$KEY_FILE" ] && [ -f "$PRESET_FILE" ]; then
-            ABS_KEY=$(realpath "$KEY_FILE")
-            sed -i "s|keystore/debug=.*|keystore/debug=\"$ABS_KEY\"|g" "$PRESET_FILE"
-            sed -i 's|keystore/debug_user=.*|keystore/debug_user="lamoushi_key"|g' "$PRESET_FILE"
-            sed -i 's|keystore/debug_password=.*|keystore/debug_password="lamoushi2026"|g' "$PRESET_FILE"
-            sed -i 's/package\/signed=false/package\/signed=true/g' "$PRESET_FILE"
-            sed -i 's/gradle_build\/use_gradle_build=false/gradle_build\/use_gradle_build=true/g' "$PRESET_FILE"
-            sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
+            echo "✅ تم ضبط GDExtension بنجاح."
           fi
+
 
       - name: Create Godot Editor Settings
         run: |
