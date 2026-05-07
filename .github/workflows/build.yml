@@ -1,1 +1,92 @@
 
+name: "Build Khayel APK"
+
+on:
+  push:
+    branches:
+      - main  # سيشتغل تلقائياً عند أي تغيير في هذا الفرع
+  workflow_dispatch: # يتيح لك التشغيل اليدوي أيضاً
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install openjdk-17-jdk wget unzip -y
+
+      - name: Setup Android SDK
+        run: |
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q commandlinetools-linux-11076708_latest.zip
+          mv cmdline-tools latest
+          export ANDROID_HOME=$HOME/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          yes | sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "build-tools;34.0.0" "platforms;android-34"
+
+      - name: Download Project from Google Drive
+        run: |
+          wget --no-check-certificate 'https://docs.google.com/uc?export=download&id=1WqPJVISx4dlJtZHERoZQ1m_J1MyXbR7x' -O khayel.zip
+          unzip -qo khayel.zip -d .
+
+      - name: Download Godot Engine
+        run: |
+          wget -q https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_linux.x86_64.zip
+          unzip -qo Godot_v4.6.2-stable_linux.x86_64.zip
+          mv Godot_v4.6.2-stable_linux.x86_64 godot
+          chmod +x godot
+
+      - name: Setup Export Templates
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/4.6.2.stable
+          wget -q https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_export_templates.tpz
+          unzip -qo Godot_v4.6.2-stable_export_templates.tpz
+          mv templates/* ~/.local/share/godot/export_templates/4.6.2.stable/
+
+      - name: Patch Project Files
+        run: |
+          # إصلاح GDExtension
+          EXT_FILE="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
+          if [ -d "khayel/addons/gdffmpeg" ]; then
+            echo "[configuration]
+          entry_symbol = \"gdffmpeg_library_init\"
+          compatibility_minimum = \"4.1\"
+          [libraries]
+          android.arm64 = \"res://addons/gdffmpeg/libgdffmpeg.android.template_release.arm64.so\"
+          android.arm32 = \"res://addons/gdffmpeg/libgdffmpeg.android.template_release.arm32.so\"" > "$EXT_FILE"
+          fi
+
+          # إصلاح Presets
+          PRESET_FILE="khayel/export_presets.cfg"
+          if [ -f "$PRESET_FILE" ]; then
+            sed -i 's/package\/signed=true/package\/signed=false/g' "$PRESET_FILE"
+            sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
+            sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
+            sed -i 's/architectures\/armeabi-v7a=false/architectures\/armeabi-v7a=true/g' "$PRESET_FILE"
+          fi
+
+      - name: Create Godot Editor Settings
+        run: |
+          mkdir -p ~/.config/godot
+          echo '[gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "/home/runner/android-sdk"
+          export/android/jdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' > ~/.config/godot/editor_settings-4.6.tres
+
+      - name: Build APK
+        run: |
+          mkdir -p build/android
+          ./godot --headless --path khayel --export-debug "Android" build/android/Khayel_Final.apk --verbose
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Khayel-Artifact
+          path: build/android/Khayel_Final.apk
