@@ -1,7 +1,10 @@
-name: "Test Drive Download Only"
+name: "Auto Test Drive Download"
 
 on:
-  workflow_dispatch: # تشغيل يدويا لتوفير الوقت
+  push:
+    branches:
+      - main  # سيشتغل تلقائياً بمجرد ضغط Commit أو Push على فرع main
+  workflow_dispatch: # نترك خيار التشغيل اليدوي للطوارئ
 
 jobs:
   test_download:
@@ -13,35 +16,37 @@ jobs:
           FILE_ID="1WqPJVISx4dlJtZHERoZQ1m_J1MyXbR7x"
           OUT_FILE="khayel.zip"
           
-          echo "🔍 محاولة جلب كود التأكيد من جوجل..."
+          echo "🔍 يبدأ الفحص التلقائي لجلب الملف..."
           
           # جلب الصفحة الأولية وحفظ الكوكيز
           wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate \
             "https://docs.google.com/uc?export=download&id=${FILE_ID}" -O- > /tmp/confirm_page.html
           
-          # استخراج الكود
+          # استخراج الكود باستخدام محرك بحث أكثر دقة
           CONFIRM=$(grep -o 'confirm=[^&\" ]*' /tmp/confirm_page.html | cut -d'=' -f2)
           
           if [ -z "$CONFIRM" ]; then
-            echo "⚠️ لم يتم العثور على كود تأكيد (قد يكون الملف متاحاً للتحميل المباشر)"
+            echo "⚠️ لم نجد كود تأكيد، نحاول التحميل المباشر..."
             wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&id=${FILE_ID}" -O $OUT_FILE
           else
-            echo "✅ تم العثور على الكود: $CONFIRM"
+            echo "✅ تم قنص الكود: $CONFIRM"
             wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=${CONFIRM}&id=${FILE_ID}" -O $OUT_FILE
           fi
 
-          # التحقق من حجم ونوع الملف الناتج
+          # التحقق من حجم الملف
           SIZE=$(stat -c%s "$OUT_FILE")
-          echo "📊 حجم الملف المحمل: $SIZE بايت"
+          echo "📊 الحجم المستلم: $SIZE بايت"
           
           if [ "$SIZE" -lt 10000 ]; then
-            echo "❌ فشل التحميل! الملف الناتج صغير جداً (غالباً صفحة HTML)."
-            echo "--- بداية محتوى الملف الفاشل ---"
-            cat $OUT_FILE
-            echo "--- نهاية محتوى الملف الفاشل ---"
+            echo "❌ فشل ذريع! جوجل أرسلت صفحة تحذير بدلاً من الملف."
+            echo "--- محتوى الرد من جوجل لغرض التصحيح ---"
+            cat $OUT_FILE | head -n 50 # عرض أول 50 سطر لنفهم المشكلة
+            echo "--- نهاية المحتوى ---"
             exit 1
           else
-            echo "🎉 نجاح باهر! الملف تم تحميله بالكامل."
+            echo "🎉 نجاح! الملف جاهز."
             file $OUT_FILE
             ls -lh $OUT_FILE
           fi
+          
+          rm -rf /tmp/cookies.txt /tmp/confirm_page.html
