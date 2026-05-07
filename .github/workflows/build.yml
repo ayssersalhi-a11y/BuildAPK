@@ -6,6 +6,11 @@ on:
       - main
   workflow_dispatch:
 
+# تعريف المتغيرات عالمياً لضمان وصول كل الخطوات إليها
+env:
+  ANDROID_HOME: /home/runner/android-sdk
+  GODOT_VERSION: 4.6.2
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,11 +25,10 @@ jobs:
           sudo apt-get install openjdk-17-jdk wget unzip sed -y
           pip install --upgrade gdown
 
-      # --- [ بداية نظام التخزين ] ---
       - name: Cache Android SDK
         uses: actions/cache@v4
         with:
-          path: $HOME/android-sdk
+          path: ${{ env.ANDROID_HOME }}
           key: ${{ runner.os }}-android-sdk-v1
 
       - name: Cache Godot & Templates
@@ -33,20 +37,18 @@ jobs:
           path: |
             ~/.local/share/godot/export_templates
             ./godot
-          key: ${{ runner.os }}-godot-4.6.2-v1
-      # --- [ نهاية نظام التخزين ] ---
+          key: ${{ runner.os }}-godot-${{ env.GODOT_VERSION }}-v1
 
-      - name: Setup Android SDK (Runs only if not cached)
+      - name: Setup Android SDK
         run: |
-          if [ ! -d "$HOME/android-sdk/cmdline-tools" ]; then
-            mkdir -p $HOME/android-sdk/cmdline-tools
-            cd $HOME/android-sdk/cmdline-tools
+          if [ ! -d "$ANDROID_HOME/cmdline-tools" ]; then
+            mkdir -p $ANDROID_HOME/cmdline-tools
+            cd $ANDROID_HOME/cmdline-tools
             wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
             unzip -q commandlinetools-linux-11076708_latest.zip
             mv cmdline-tools latest
-            export ANDROID_HOME=$HOME/android-sdk
-            export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-            yes | sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "build-tools;34.0.0" "platforms;android-34"
+            # استخدام المسار المطلق للـ sdkmanager
+            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "build-tools;34.0.0" "platforms;android-34"
           fi
 
       - name: Download Project from Google Drive
@@ -55,7 +57,7 @@ jobs:
           gdown "https://drive.google.com/uc?id=${FILE_ID}" -O khayel.zip
           unzip -qo khayel.zip -d .
 
-      - name: Setup Godot Engine (Runs only if not cached)
+      - name: Setup Godot Engine
         run: |
           if [ ! -f "./godot" ]; then
             wget -q https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_linux.x86_64.zip
@@ -64,26 +66,25 @@ jobs:
             chmod +x godot
           fi
 
-      - name: Setup Export Templates (Runs only if not cached)
+      - name: Setup Export Templates
         run: |
-          if [ ! -d "~/.local/share/godot/export_templates/4.6.2.stable" ]; then
-            mkdir -p ~/.local/share/godot/export_templates/4.6.2.stable
+          TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.6.2.stable"
+          if [ ! -d "$TEMPLATE_PATH" ]; then
+            mkdir -p "$TEMPLATE_PATH"
             wget -q https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_export_templates.tpz
             unzip -qo Godot_v4.6.2-stable_export_templates.tpz
-            mv templates/* ~/.local/share/godot/export_templates/4.6.2.stable/
+            mv templates/* "$TEMPLATE_PATH/"
           fi
 
-            - name: Auto-Patch Project Files
+      - name: Auto-Patch Project Files
         run: |
-          # 1. إصلاح GDExtension وإضافة مكتبة "وهمية" لنظام لينكس لمنع توقف المحرك
-          # غودوت يحتاج لرؤية إدخال للنظام الحالي (linux) حتى لو لم نستخدمه
+          # 1. إصلاح GDExtension (إضافة لينكس للتمويه)
           EXT_PATH="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
           if [ -d "khayel/addons/gdffmpeg" ]; then
             mkdir -p khayel/addons/gdffmpeg/bin
             echo '[configuration]
           entry_symbol = "gdffmpeg_init"
           compatibility_minimum = "4.1"
-
           [libraries]
           linux.debug.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           linux.release.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
@@ -91,39 +92,27 @@ jobs:
           android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           android.release.arm32 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm32.so"
           android.debug.arm32   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm32.so"' > "$EXT_PATH"
-            echo "✅ GDExtension patched with Linux dummy paths to bypass editor checks."
           fi
 
-          # 2. إصلاح الـ Presets وتجاوز أخطاء التكوين
+          # 2. إصلاح الـ Presets
           PRESET_FILE="khayel/export_presets.cfg"
           if [ -f "$PRESET_FILE" ]; then
-            # إلغاء التوقيع الإجباري
             sed -i 's/package\/signed=true/package\/signed=false/g' "$PRESET_FILE"
-            
-            # تفعيل Gradle Build وإضافة المسارات المفقودة
             sed -i 's/gradle_build\/use_gradle_build=false/gradle_build\/use_gradle_build=true/g' "$PRESET_FILE"
-            
-            # هذه الأسطر حاسمة: ملء الفراغات التي تسبب "Configuration Errors"
             sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
-            
-            # التأكد من تفعيل معماريات الأندرويد
             sed -i 's/architectures\/arm64-v8a=false/architectures\/arm64-v8a=true/g' "$PRESET_FILE"
             sed -i 's/architectures\/armeabi-v7a=false/architectures\/armeabi-v7a=true/g' "$PRESET_FILE"
-            
-            # التأكد من مسار تصدير الملف APK (تغييره لمسار محلي بسيط)
-            sed -i 's|export_path=.*|export_path="build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
-
-            echo "✅ Presets fixed and export path reset."
+            # توحيد مسار التصدير
+            sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
           fi
-
 
       - name: Create Godot Editor Settings
         run: |
           mkdir -p ~/.config/godot
           echo '[gd_resource type="EditorSettings" format=3]
           [resource]
-          export/android/android_sdk_path = "/home/runner/android-sdk"
+          export/android/android_sdk_path = "${{ env.ANDROID_HOME }}"
           export/android/jdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' > ~/.config/godot/editor_settings-4.6.tres
 
       - name: Build APK
