@@ -18,22 +18,20 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Professional Dependencies (Computer-Like Env)
+      - name: Install Professional Dependencies (Modern Ubuntu)
         run: |
           sudo apt-get update
-          # تم تحديث الحزم لتتوافق مع Ubuntu Noble 24.04
           sudo apt-get install -y openjdk-17-jdk wget unzip sed xvfb libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libgbm1 libvulkan1 libfontconfig1
           pip install --upgrade gdown
 
-
-      - name: Cache Management (Speed Up)
+      - name: Cache Management
         uses: actions/cache@v4
         with:
           path: |
             ${{ env.ANDROID_HOME }}
             ~/.local/share/godot/export_templates
             ./godot
-          key: ${{ runner.os }}-pro-build-${{ env.GODOT_VERSION }}-v1
+          key: ${{ runner.os }}-pro-build-${{ env.GODOT_VERSION }}-v3
 
       - name: Setup Android SDK
         run: |
@@ -48,8 +46,12 @@ jobs:
 
       - name: Download & Extract Project
         run: |
+          # تنظيف أي بقايا سابقة
+          rm -rf khayel khayel.zip
           gdown "https://drive.google.com/uc?id=1WqPJVISx4dlJtZHERoZQ1m_J1MyXbR7x" -O khayel.zip
           unzip -qo khayel.zip -d .
+          # تأكد من وجود مجلد khayel
+          ls -R khayel/addons/gdffmpeg || echo "❌ المجلد غير موجود في هذا المسار!"
 
       - name: Setup Godot Engine & Templates
         run: |
@@ -67,32 +69,44 @@ jobs:
             mv templates/* "$TEMPLATE_PATH/"
           fi
 
-      - name: Auto-Patch & GDExtension Spoofing (الخدعة الكبرى)
+      - name: Auto-Patch & GDExtension Fix
         run: |
           PROJECT_ROOT="khayel"
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
           GD_EXT_PATH="$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
           BIN_PATH="$PROJECT_ROOT/addons/gdffmpeg/bin"
           
-          # 1. ربط ملف التوقيع
-          KEY_SOURCE=$(find . -maxdepth 1 -name "lamoushi.keystore.jks")
+          # إنشاء مجلد bin إذا لم يكن موجوداً (للاحتياط)
+          mkdir -p "$BIN_PATH"
+
+          # 1. البحث عن ملف التوقيع ونسخه
+          KEY_SOURCE=$(find . -maxdepth 2 -name "lamoushi.keystore.jks" | head -n 1)
           cp "$KEY_SOURCE" "$PROJECT_ROOT/lamoushi.keystore.jks"
           ABS_KEY=$(realpath "$PROJECT_ROOT/lamoushi.keystore.jks")
 
-          # 2. تنظيف ملفات الـ UID والـ Import القديمة لضمان توافق البيئة
+          # 2. تنظيف
           find "$PROJECT_ROOT" -name "*.uid" -delete
           find "$PROJECT_ROOT" -name "*.import" -delete
 
-          # 3. ترقيع ملف الإعدادات ببيانات التوقيع والمعماريات
+          # 3. ترقيع ملف التصدير
           sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
           sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
           sed -i "/package\/signed=true/a keystore/debug=\"$ABS_KEY\"\nkeystore/debug_user=\"lamoushi_key\"\nkeystore/debug_password=\"lamoushi2026\"\nkeystore/release=\"$ABS_KEY\"\nkeystore/release_user=\"lamoushi_key\"\nkeystore/release_password=\"lamoushi2026\"" "$PRESET_FILE"
           sed -i 's/architectures\/arm64-v8a=false/architectures\/arm64-v8a=true/g' "$PRESET_FILE"
           sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
 
-          # 4. خدعة المسارات: إيهام المحرك بوجود مكتبة لينكس لتجنب الانهيار
-          cp "$BIN_PATH/libgdffmpeg.android.arm64.so" "$BIN_PATH/libgdffmpeg.linux.x86_64.so"
+          # 4. حل مشكلة الملف المفقود (الحل الجذري)
+          # سنبحث عن ملف الـ .so الأصلي أينما كان وننسخه للاسم الجديد
+          ORIGINAL_SO=$(find "$BIN_PATH" -name "*.so" | head -n 1)
+          if [ -f "$ORIGINAL_SO" ]; then
+            cp "$ORIGINAL_SO" "$BIN_PATH/libgdffmpeg.linux.x86_64.so"
+            echo "✅ تم إنشاء الملف الوهمي من: $ORIGINAL_SO"
+          else
+            echo "❌ لم يتم العثور على ملف .so أصلي!"
+            exit 1
+          fi
 
+          # 5. كتابة ملف الإضافة بمسارات دقيقة
           cat <<EOF > "$GD_EXT_PATH"
           [configuration]
           entry_symbol = "gdffmpeg_init"
@@ -120,13 +134,12 @@ jobs:
         run: |
           mkdir -p build/android
           PROJECT_ROOT="khayel"
-          
-          # تنظيف الكاش وإعادة الاستيراد تحت شاشة وهمية Xvfb
           rm -rf "$PROJECT_ROOT/.godot"
-          echo "🔄 المرحلة 1: استيراد الموارد في بيئة وهمية..."
+          
+          echo "🔄 استيراد الموارد..."
           xvfb-run ./godot --headless --path "$PROJECT_ROOT" --editor --quit --verbose || true
           
-          echo "🚀 المرحلة 2: التصدير النهائي للأندرويد..."
+          echo "🚀 التصدير النهائي..."
           xvfb-run ./godot --headless --path "$PROJECT_ROOT" --export-debug "Android" build/android/Khayel_Final.apk --verbose
 
       - name: Upload APK Artifact
