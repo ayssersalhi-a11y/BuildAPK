@@ -21,9 +21,10 @@ jobs:
       - name: Install Professional Dependencies (Computer-Like Env)
         run: |
           sudo apt-get update
-          # تثبيت المكتبات التي تجعل السيرفر يمتلك قدرات واجهة رسومية ومعالجة قوية
-          sudo apt-get install -y openjdk-17-jdk wget unzip sed xvfb libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1-mesa-glx libvulkan1 libfontconfig1
+          # تم تحديث الحزم لتتوافق مع Ubuntu Noble 24.04
+          sudo apt-get install -y openjdk-17-jdk wget unzip sed xvfb libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libgbm1 libvulkan1 libfontconfig1
           pip install --upgrade gdown
+
 
       - name: Cache Management (Speed Up)
         uses: actions/cache@v4
