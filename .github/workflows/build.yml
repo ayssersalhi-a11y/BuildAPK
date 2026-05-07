@@ -82,40 +82,35 @@ jobs:
           # 1. تحديد المسارات
           PROJECT_ROOT="khayel"
           GD_PATH="$PROJECT_ROOT/addons/gdffmpeg"
-          BIN_PATH="$GD_PATH/bin"
-          SO_NAME="libgdffmpeg.android.arm64.so"
           
-          echo "🛠️ التحقق من هيكلة المجلدات..."
-          mkdir -p "$BIN_PATH"
+          # 2. البحث عن المكتبة والحصول على مسارها بالنسبة لـ res://
+          # سنبحث عن الملف ونستخرج مساره النسبي داخل المشروع
+          SO_FULL_PATH=$(find "$PROJECT_ROOT" -iname "libgdffmpeg.android.arm64.so" | head -n 1)
           
-          # 2. البحث عن المكتبة (بدون محاولة نسخها إذا كانت في مكانها)
-          SO_FILE=$(find . -iname "$SO_NAME" | head -n 1)
-          
-          if [ ! -z "$SO_FILE" ]; then
-            SRC=$(realpath "$SO_FILE")
-            DST=$(realpath "$BIN_PATH/$SO_NAME")
-            if [ "$SRC" != "$DST" ]; then
-              cp -f "$SRC" "$DST"
-              echo "✅ تم نقل المكتبة إلى المجلد المستهدف."
-            else
-              echo "✅ المكتبة موجودة بالفعل في: $BIN_PATH"
-            fi
+          if [ ! -z "$SO_FULL_PATH" ]; then
+            # تحويل المسار من نظام الملفات إلى مسار Godot (res://)
+            # مثال: khayel/addons/gdffmpeg/bin/file.so -> res://addons/gdffmpeg/bin/file.so
+            GODOT_RES_PATH=$(echo "$SO_FULL_PATH" | sed "s|^$PROJECT_ROOT/|res://|")
+            echo "✅ تم تحديد مسار المكتبة للمحرك: $GODOT_RES_PATH"
+            
+            # إعطاء صلاحيات كاملة للملف (مهم جداً للـ Dynamic Library)
+            chmod -R 777 "$PROJECT_ROOT/addons"
           else
-            echo "❌ خطأ: لم يتم العثور على $SO_NAME في أي مكان!"
+            echo "❌ خطأ: لم يتم العثور على المكتبة في أي مكان داخل $PROJECT_ROOT"
             exit 1
           fi
 
-          # 3. تحديث ملف .gdextension (هذا هو الأهم ليراه المحرك)
-          echo '[configuration]
-          entry_symbol = "gdffmpeg_init"
-          compatibility_minimum = "4.1"
+          # 3. إعادة كتابة ملف .gdextension بالمسار الحقيقي الذي وجدناه
+          echo "[configuration]
+          entry_symbol = \"gdffmpeg_init\"
+          compatibility_minimum = \"4.1\"
           [libraries]
-          linux.debug.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
-          linux.release.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
-          android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
-          android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"' > "$GD_PATH/gdffmpeg.gdextension"
+          linux.debug.x86_64 = \"$GODOT_RES_PATH\"
+          linux.release.x86_64 = \"$GODOT_RES_PATH\"
+          android.release.arm64 = \"$GODOT_RES_PATH\"
+          android.debug.arm64   = \"$GODOT_RES_PATH\"" > "$GD_PATH/gdffmpeg.gdextension"
 
-          # 4. ربط الـ Keystore
+          # 4. ربط الـ Keystore (نفس الكود السابق لأنه ناجح)
           KEY_FILE=$(find . -name "lamoushi.keystore.jks" | head -n 1)
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
           
@@ -124,15 +119,12 @@ jobs:
             sed -i "s|keystore/debug=.*|keystore/debug=\"$ABS_KEY\"|g" "$PRESET_FILE"
             sed -i 's|keystore/debug_user=.*|keystore/debug_user="lamoushi_key"|g' "$PRESET_FILE"
             sed -i 's|keystore/debug_password=.*|keystore/debug_password="lamoushi2026"|g' "$PRESET_FILE"
-            
             sed -i 's/package\/signed=false/package\/signed=true/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/use_gradle_build=false/gradle_build\/use_gradle_build=true/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
-            
-            # توحيد مسار التصدير
             sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
-            echo "✅ تم إعداد ملفات التصدير بنجاح."
+            echo "✅ تم ضبط كل شيء بنجاح."
           else
             echo "❌ ملف الإعدادات أو المفاتيح مفقود!"
             exit 1
