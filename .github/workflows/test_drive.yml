@@ -1,0 +1,47 @@
+name: "Test Drive Download Only"
+
+on:
+  workflow_dispatch: # تشغيل يدويا لتوفير الوقت
+
+jobs:
+  test_download:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Attempt Google Drive Download
+        run: |
+          FILE_ID="1WqPJVISx4dlJtZHERoZQ1m_J1MyXbR7x"
+          OUT_FILE="khayel.zip"
+          
+          echo "🔍 محاولة جلب كود التأكيد من جوجل..."
+          
+          # جلب الصفحة الأولية وحفظ الكوكيز
+          wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate \
+            "https://docs.google.com/uc?export=download&id=${FILE_ID}" -O- > /tmp/confirm_page.html
+          
+          # استخراج الكود
+          CONFIRM=$(grep -o 'confirm=[^&\" ]*' /tmp/confirm_page.html | cut -d'=' -f2)
+          
+          if [ -z "$CONFIRM" ]; then
+            echo "⚠️ لم يتم العثور على كود تأكيد (قد يكون الملف متاحاً للتحميل المباشر)"
+            wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&id=${FILE_ID}" -O $OUT_FILE
+          else
+            echo "✅ تم العثور على الكود: $CONFIRM"
+            wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=${CONFIRM}&id=${FILE_ID}" -O $OUT_FILE
+          fi
+
+          # التحقق من حجم ونوع الملف الناتج
+          SIZE=$(stat -c%s "$OUT_FILE")
+          echo "📊 حجم الملف المحمل: $SIZE بايت"
+          
+          if [ "$SIZE" -lt 10000 ]; then
+            echo "❌ فشل التحميل! الملف الناتج صغير جداً (غالباً صفحة HTML)."
+            echo "--- بداية محتوى الملف الفاشل ---"
+            cat $OUT_FILE
+            echo "--- نهاية محتوى الملف الفاشل ---"
+            exit 1
+          else
+            echo "🎉 نجاح باهر! الملف تم تحميله بالكامل."
+            file $OUT_FILE
+            ls -lh $OUT_FILE
+          fi
