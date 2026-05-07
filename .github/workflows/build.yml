@@ -78,7 +78,22 @@ jobs:
 
       - name: Auto-Patch Project Files
         run: |
-          # 1. إصلاح GDExtension (إضافة لينكس للتمويه)
+          # 1. تعريف مسار الملف (بالاسم الجديد المكتوب في الصورة)
+          # سنبحث عن الملف في المجلد الرئيسي أو داخل مجلد script لضمان إيجاده
+          KEY_PATH=$(find . -name "lamoushi.keystore.jks" | head -n 1)
+          PRESET_FILE="khayel/export_presets.cfg"
+          
+          echo "🔍 البحث عن ملف المفاتيح: lamoushi.keystore.jks"
+          if [ -f "$KEY_PATH" ]; then
+            # تحويل المسار إلى مسار مطلق (Absolute Path)
+            ABS_KEY_PATH=$(realpath "$KEY_PATH")
+            echo "✅ تم العثور على المفتاح في: $ABS_KEY_PATH"
+          else
+            echo "❌ خطأ: لم يتم العثور على lamoushi.keystore.jks! تأكد من رفعه للمستودع."
+            exit 1
+          fi
+
+          # 2. إصلاح GDExtension (خدعة اللينكس)
           EXT_PATH="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
           if [ -d "khayel/addons/gdffmpeg" ]; then
             mkdir -p khayel/addons/gdffmpeg/bin
@@ -94,18 +109,27 @@ jobs:
           android.debug.arm32   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm32.so"' > "$EXT_PATH"
           fi
 
-          # 2. إصلاح الـ Presets
-          PRESET_FILE="khayel/export_presets.cfg"
+          # 3. ربط ملف Keystore الحقيقي بـ Godot
           if [ -f "$PRESET_FILE" ]; then
-            sed -i 's/package\/signed=true/package\/signed=false/g' "$PRESET_FILE"
+            # استخدام المسار الذي وجده السكربت تلقائياً
+            sed -i "s|keystore/debug=.*|keystore/debug=\"$ABS_KEY_PATH\"|g" "$PRESET_FILE"
+            sed -i 's|keystore/debug_user=.*|keystore/debug_user="lamoushi_key"|g' "$PRESET_FILE"
+            sed -i 's|keystore/debug_password=.*|keystore/debug_password="lamoushi2026"|g' "$PRESET_FILE"
+            
+            sed -i 's/package\/signed=false/package\/signed=true/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/use_gradle_build=false/gradle_build\/use_gradle_build=true/g' "$PRESET_FILE"
+            
+            # ضبط نسخ الـ SDK والمعماريات
             sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
             sed -i 's/architectures\/arm64-v8a=false/architectures\/arm64-v8a=true/g' "$PRESET_FILE"
-            sed -i 's/architectures\/armeabi-v7a=false/architectures\/armeabi-v7a=true/g' "$PRESET_FILE"
+            
             # توحيد مسار التصدير
             sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
+            
+            echo "✅ تم الربط بنجاح مع الملف: lamoushi.keystore.jks"
           fi
+
 
       - name: Create Godot Editor Settings
         run: |
