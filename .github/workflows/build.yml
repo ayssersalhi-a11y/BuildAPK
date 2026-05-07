@@ -32,18 +32,20 @@ jobs:
 
       - name: Download Project from Google Drive
         run: |
-          # تجاوز حماية الملفات الكبيرة في جوجل درايف
           FILE_ID="1WqPJVISx4dlJtZHERoZQ1m_J1MyXbR7x"
+          # المرحلة 1: جلب كود التأكيد (Confirm Code) لتجاوز فحص الفيروسات للملفات الكبيرة
           CONFIRM=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate "https://docs.google.com/uc?export=download&id=$FILE_ID" -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')
+          
+          # المرحلة 2: استخدام كود التأكيد والكوكيز لتحميل ملف الـ ZIP الحقيقي
           wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$CONFIRM&id=$FILE_ID" -O khayel.zip
           rm -rf /tmp/cookies.txt
           
-          # فك الضغط
-          if [ -f "khayel.zip" ]; then
+          # المرحلة 3: فك الضغط والتأكد من صحة الملف
+          if file khayel.zip | grep -q "Zip archive"; then
             unzip -qo khayel.zip -d .
-            echo "✅ Project downloaded and unzipped successfully."
+            echo "✅ Project extracted successfully."
           else
-            echo "❌ Failed to download the project!"
+            echo "❌ Error: Downloaded file is not a valid ZIP. Check Drive permissions."
             exit 1
           fi
 
@@ -63,7 +65,7 @@ jobs:
 
       - name: Auto-Patch Project Files
         run: |
-          # إصلاح ملف GDExtension ليعمل على الأندرويد فقط
+          # إصلاح ملف GDExtension ليعمل على معالجات الأندرويد
           EXT_PATH="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
           if [ -d "khayel/addons/gdffmpeg" ]; then
             echo "[configuration]
@@ -72,17 +74,16 @@ jobs:
           [libraries]
           android.arm64 = \"res://addons/gdffmpeg/libgdffmpeg.android.template_release.arm64.so\"
           android.arm32 = \"res://addons/gdffmpeg/libgdffmpeg.android.template_release.arm32.so\"" > "$EXT_PATH"
-            echo "✅ GDExtension patched."
           fi
 
-          # تعديل إعدادات التصدير لتناسب البيئة (Non-Signed APK)
+          # تعديل إعدادات التصدير لتعمل في بيئة غيت هيب النظيفة
           PRESET_FILE="khayel/export_presets.cfg"
           if [ -f "$PRESET_FILE" ]; then
             sed -i 's/package\/signed=true/package\/signed=false/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
             sed -i 's/architectures\/armeabi-v7a=false/architectures\/armeabi-v7a=true/g' "$PRESET_FILE"
-            echo "✅ Export presets patched."
+            sed -i 's/architectures\/arm64-v8a=false/architectures\/arm64-v8a=true/g' "$PRESET_FILE"
           fi
 
       - name: Create Godot Editor Settings
@@ -101,5 +102,5 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Khayel-Application
+          name: Khayel-Built-APK
           path: build/android/Khayel_Final.apk
