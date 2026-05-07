@@ -158,6 +158,20 @@ jobs:
           echo "🚀 بدء عملية التصدير النهائية..."
           ./godot --headless --path khayel --export-debug "Android" build/android/Khayel_Final.apk --verbose
 
+      - name: Import Resources & Build APK
+        run: |
+          mkdir -p build/android
+          
+          # خطوة سحرية: تنظيف الكاش القديم للمشروع ليتعرف على المسارات الجديدة للمكتبات
+          rm -rf khayel/.godot
+          
+          echo "🔄 جاري تهيئة المشروع والموارد..."
+          # تشغيل المحرك لثوانٍ فقط لعمل Import ثم الإغلاق
+          ./godot --headless --path khayel --editor --quit || true
+          
+          echo "🚀 بدء عملية التصدير النهائية..."
+          ./godot --headless --path khayel --export-debug "Android" build/android/Khayel_Final.apk --verbose
+
       - name: Build APK
         run: |
           mkdir -p build/android
