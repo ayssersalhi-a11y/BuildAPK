@@ -1,7 +1,7 @@
 name: "Build Khayel APK"
 
 on:
-  workflow_dispatch: # يتيح لك تشغيل البناء يدوياً بضغطة زر
+  workflow_dispatch: # يتيح لك تشغيل البناء يدوياً من تبويب Actions
 
 jobs:
   build:
@@ -29,9 +29,10 @@ jobs:
 
       - name: Download Project from Google Drive
         run: |
-          # استبدل FILE_ID بمعرف ملفك من رابط الدرايف
-          wget --no-check-certificate 'https://docs.google.com/uc?export=download&id=YOUR_FILE_ID_HERE' -O khayel.zip
+          # تحميل الملف باستخدام المعرف الخاص بك
+          wget --no-check-certificate 'https://docs.google.com/uc?export=download&id=1WqPJVISx4dlJtZHERoZQ1m_J1MyXbR7x' -O khayel.zip
           unzip -qo khayel.zip -d .
+          # تأكد من أن المجلد الناتج اسمه khayel، إذا كان مختلفاً سنعدله لاحقاً
 
       - name: Download Godot Engine
         run: |
@@ -47,13 +48,42 @@ jobs:
           unzip -qo Godot_v4.6.2-stable_export_templates.tpz
           mv templates/* ~/.local/share/godot/export_templates/4.6.2.stable/
 
+      - name: Patch Project Files (Auto-Fix)
+        run: |
+          # إصلاح ملف GDExtension لمنع خطأ linux.x86_64
+          EXT_FILE="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
+          if [ -f "$EXT_FILE" ]; then
+            echo "[configuration]
+          entry_symbol = \"gdffmpeg_library_init\"
+          compatibility_minimum = \"4.1\"
+          [libraries]
+          android.arm64 = \"res://addons/gdffmpeg/libgdffmpeg.android.template_release.arm64.so\"
+          android.arm32 = \"res://addons/gdffmpeg/libgdffmpeg.android.template_release.arm32.so\"" > "$EXT_FILE"
+          fi
+
+          # إصلاح ملف الـ Presets
+          PRESET_FILE="khayel/export_presets.cfg"
+          if [ -f "$PRESET_FILE" ]; then
+            sed -i 's/package\/signed=true/package\/signed=false/g' "$PRESET_FILE"
+            sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
+            sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
+          fi
+
+      - name: Create Godot Editor Settings
+        run: |
+          mkdir -p ~/.config/godot
+          echo '[gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "/home/runner/android-sdk"
+          export/android/jdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' > ~/.config/godot/editor_settings-4.6.tres
+
       - name: Build APK
         run: |
           mkdir -p build/android
-          ./godot --headless --path khayel --export-debug "Android" build/android/Khayel_Final.apk
+          ./godot --headless --path khayel --export-debug "Android" build/android/Khayel_Final.apk --verbose
 
-      - name: Upload APK to GitHub Artifacts
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Khayel-APK
+          name: Khayel-Final-APK
           path: build/android/Khayel_Final.apk
