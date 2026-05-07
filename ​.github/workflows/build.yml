@@ -1,7 +1,7 @@
 name: "Build Khayel APK Automatically"
 
 on:
-  push:
+  push: 
     branches:
       - main  # سيشتغل الكود تلقائياً بمجرد الرفع (Push) على فرع main
   pull_request:
