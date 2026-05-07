@@ -1,7 +1,13 @@
-name: "Build Khayel APK"
+name: "Build Khayel APK Automatically"
 
 on:
-  workflow_dispatch: # يتيح لك تشغيل البناء يدوياً من تبويب Actions
+  push:
+    branches:
+      - main  # سيشتغل الكود تلقائياً بمجرد الرفع (Push) على فرع main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # نترك هذا الخيار متاحاً للتشغيل اليدوي أيضاً
 
 jobs:
   build:
@@ -29,10 +35,8 @@ jobs:
 
       - name: Download Project from Google Drive
         run: |
-          # تحميل الملف باستخدام المعرف الخاص بك
           wget --no-check-certificate 'https://docs.google.com/uc?export=download&id=1WqPJVISx4dlJtZHERoZQ1m_J1MyXbR7x' -O khayel.zip
           unzip -qo khayel.zip -d .
-          # تأكد من أن المجلد الناتج اسمه khayel، إذا كان مختلفاً سنعدله لاحقاً
 
       - name: Download Godot Engine
         run: |
@@ -48,11 +52,11 @@ jobs:
           unzip -qo Godot_v4.6.2-stable_export_templates.tpz
           mv templates/* ~/.local/share/godot/export_templates/4.6.2.stable/
 
-      - name: Patch Project Files (Auto-Fix)
+      - name: Auto-Patch Files
         run: |
-          # إصلاح ملف GDExtension لمنع خطأ linux.x86_64
+          # إصلاح الإضافة (GDExtension)
           EXT_FILE="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
-          if [ -f "$EXT_FILE" ]; then
+          if [ -d "khayel/addons/gdffmpeg" ]; then
             echo "[configuration]
           entry_symbol = \"gdffmpeg_library_init\"
           compatibility_minimum = \"4.1\"
@@ -61,15 +65,16 @@ jobs:
           android.arm32 = \"res://addons/gdffmpeg/libgdffmpeg.android.template_release.arm32.so\"" > "$EXT_FILE"
           fi
 
-          # إصلاح ملف الـ Presets
+          # إصلاح إعدادات التصدير (Presets)
           PRESET_FILE="khayel/export_presets.cfg"
           if [ -f "$PRESET_FILE" ]; then
             sed -i 's/package\/signed=true/package\/signed=false/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
+            sed -i 's/architectures\/armeabi-v7a=false/architectures\/armeabi-v7a=true/g' "$PRESET_FILE"
           fi
 
-      - name: Create Godot Editor Settings
+      - name: Create Editor Settings
         run: |
           mkdir -p ~/.config/godot
           echo '[gd_resource type="EditorSettings" format=3]
@@ -82,8 +87,8 @@ jobs:
           mkdir -p build/android
           ./godot --headless --path khayel --export-debug "Android" build/android/Khayel_Final.apk --verbose
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Khayel-Final-APK
+          name: Khayel-Auto-Build
           path: build/android/Khayel_Final.apk
