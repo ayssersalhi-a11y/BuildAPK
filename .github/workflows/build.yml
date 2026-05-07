@@ -24,20 +24,6 @@ jobs:
           sudo apt-get install openjdk-17-jdk wget unzip sed -y
           pip install --upgrade gdown
 
-      - name: Cache Android SDK
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.ANDROID_HOME }}
-          key: ${{ runner.os }}-android-sdk-v1
-
-      - name: Cache Godot & Templates
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/godot/export_templates
-            ./godot
-          key: ${{ runner.os }}-godot-${{ env.GODOT_VERSION }}-v1
-
       - name: Setup Android SDK
         run: |
           if [ ! -d "$ANDROID_HOME/cmdline-tools" ]; then
@@ -55,86 +41,69 @@ jobs:
           gdown "https://drive.google.com/uc?id=${FILE_ID}" -O khayel.zip
           unzip -qo khayel.zip -d .
 
-      - name: Setup Godot Engine
+      - name: Setup Godot Engine & Templates
         run: |
-          if [ ! -f "./godot" ]; then
-            wget -q https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_linux.x86_64.zip
-            unzip -qo Godot_v4.6.2-stable_linux.x86_64.zip
-            mv Godot_v4.6.2-stable_linux.x86_64 godot
-            chmod +x godot
-          fi
-
-      - name: Setup Export Templates
-        run: |
+          # تحميل المحرك
+          wget -q https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_linux.x86_64.zip
+          unzip -qo Godot_v4.6.2-stable_linux.x86_64.zip
+          mv Godot_v4.6.2-stable_linux.x86_64 godot
+          chmod +x godot
+          # تحميل القوالب
           TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.6.2.stable"
-          if [ ! -d "$TEMPLATE_PATH" ]; then
-            mkdir -p "$TEMPLATE_PATH"
-            wget -q https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_export_templates.tpz
-            unzip -qo Godot_v4.6.2-stable_export_templates.tpz
-            mv templates/* "$TEMPLATE_PATH/"
-          fi
+          mkdir -p "$TEMPLATE_PATH"
+          wget -q https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_export_templates.tpz
+          unzip -qo Godot_v4.6.2-stable_export_templates.tpz
+          mv templates/* "$TEMPLATE_PATH/"
 
-      - name: Auto-Patch Project Files
+      - name: Ultra-Patch & Build
         run: |
           PROJECT_ROOT="khayel"
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
+          ADDON_PATH="$PROJECT_ROOT/addons/gdffmpeg"
+          TEMP_ADDON="/home/runner/temp_addon"
           
-          # تجهيز ملف التوقيع
+          # 1. تجهيز التوقيع
           KEY_SOURCE=$(find . -maxdepth 1 -name "lamoushi.keystore.jks")
           cp "$KEY_SOURCE" "$PROJECT_ROOT/lamoushi.keystore.jks"
           ABS_KEY=$(realpath "$PROJECT_ROOT/lamoushi.keystore.jks")
 
-          echo "🛠️ تنظيف وتجهيز ملف الإعدادات..."
-          find "$PROJECT_ROOT" -name "*.uid" -delete
-          find "$PROJECT_ROOT" -name "*.import" -delete
-
-          # إصلاح الـ Presets
+          # 2. ترقيع ملف الإعدادات
           sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
           sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
-          
           sed -i '/keystore\/debug/d' "$PRESET_FILE"
           sed -i '/keystore\/release/d' "$PRESET_FILE"
           sed -i "/package\/signed=true/a keystore/debug=\"$ABS_KEY\"\nkeystore/debug_user=\"lamoushi_key\"\nkeystore/debug_password=\"lamoushi2026\"\nkeystore/release=\"$ABS_KEY\"\nkeystore/release_user=\"lamoushi_key\"\nkeystore/release_password=\"lamoushi2026\"" "$PRESET_FILE"
-          
           sed -i 's/architectures\/arm64-v8a=false/architectures\/arm64-v8a=true/g' "$PRESET_FILE"
-          sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
-
-          # سنقوم بإنشاء ملف الـ gdextension لاحقاً في خطوة البناء
-
-      - name: Create Godot Editor Settings
-        run: |
-          mkdir -p ~/.config/godot
-          echo '[gd_resource type="EditorSettings" format=3]
-          [resource]
-          export/android/sdk_path = "${{ env.ANDROID_HOME }}"
-          export/android/android_sdk_path = "${{ env.ANDROID_HOME }}"
-          export/android/jdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' > ~/.config/godot/editor_settings-4.6.tres
-
-      - name: Accept Android Licenses
-        run: yes | ${{ env.ANDROID_HOME }}/cmdline-tools/latest/bin/sdkmanager --licenses
-
-      - name: Final Build APK
-        run: |
-          mkdir -p build/android
-          PROJECT_ROOT="khayel"
-          GD_EXT_PATH="$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
           
-          echo "🔄 الخطوة 1: استيراد أولي صامت (بدون الملحق لتجنب أخطاء Linux)..."
-          rm -f "$GD_EXT_PATH"
+          # 3. خطوة "الإخفاء": نقل الملحق لخارج المشروع تماماً قبل الاستيراد
+          echo "🚚 نقل الملحق مؤقتاً لتجنب فحص Linux..."
+          mv "$ADDON_PATH" "$TEMP_ADDON"
+          
+          # 4. استيراد الموارد بدون الملحق المسبب للمشاكل
+          echo "🔄 استيراد الموارد الأساسية..."
           ./godot --headless --path "$PROJECT_ROOT" --editor --quit --verbose || true
           
-          echo "🛠️ الخطوة 2: إعادة إنشاء ملف GDExtension للأندرويد فقط..."
-          cat <<EOF > "$GD_EXT_PATH"
+          # 5. خطوة "الإعادة": إرجاع الملحق وتزويره ليعمل على Linux (وهمياً)
+          echo "🔙 إرجاع الملحق وتزوير ملف الإعدادات..."
+          mv "$TEMP_ADDON" "$ADDON_PATH"
+          
+          # سننشئ ملف وهمي فارغ ليوهم المحرك أنه مكتبة Linux ليتخطى الفحص
+          touch "$ADDON_PATH/bin/lib_fake.so"
+          
+          cat <<EOF > "$ADDON_PATH/gdffmpeg.gdextension"
           [configuration]
           entry_symbol = "gdffmpeg_init"
           compatibility_minimum = "4.1"
           [libraries]
+          linux.debug.x86_64 = "res://addons/gdffmpeg/bin/lib_fake.so"
+          linux.release.x86_64 = "res://addons/gdffmpeg/bin/lib_fake.so"
           android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           EOF
 
-          echo "🚀 الخطوة 3: التصدير المباشر..."
-          # سنستخدم خيار --no-window لزيادة الاستقرار
+          # 6. التصدير النهائي
+          echo "🚀 التصدير النهائي..."
+          mkdir -p build/android
           ./godot --headless --path "$PROJECT_ROOT" --export-debug "Android" build/android/Khayel_Final.apk --verbose
 
       - name: Upload APK Artifact
