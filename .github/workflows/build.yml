@@ -77,53 +77,53 @@ jobs:
       - name: Auto-Patch Project Files
         run: |
           PROJECT_ROOT="khayel"
-          GD_PATH="$PROJECT_ROOT/addons/gdffmpeg"
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
           
-          # 1. البحث عن الملفات وتحديد المسارات المطلقة
-          KEY_FILE=$(find . -maxdepth 1 -name "lamoushi.keystore.jks")
-          SO_FILE=$(find "$PROJECT_ROOT" -name "libgdffmpeg.android.arm64.so" | head -n 1)
+          # 1. تحديد موقع ملف الـ JKS (الموجود في جذر المستودع حسب صورتك السابقة)
+          # سنقوم بنسخه إلى داخل مجلد المشروع لضمان وصول غودوت إليه
+          KEY_SOURCE=$(find . -maxdepth 1 -name "lamoushi.keystore.jks")
           
-          echo "🛠️ تنظيف مخلفات الاستيراد القديمة (UID & Import)..."
-          find "$PROJECT_ROOT" -name "*.uid" -delete
-          find "$PROJECT_ROOT" -name "*.import" -delete
-          
-          if [ -f "$PRESET_FILE" ] && [ ! -z "$KEY_FILE" ]; then
-            ABS_KEY=$(realpath "$KEY_FILE")
+          if [ ! -z "$KEY_SOURCE" ]; then
+            cp "$KEY_SOURCE" "$PROJECT_ROOT/lamoushi.keystore.jks"
+            ABS_KEY=$(realpath "$PROJECT_ROOT/lamoushi.keystore.jks")
+            echo "✅ تم تجهيز ملف التوقيع في المسار: $ABS_KEY"
             
-            # 2. ترقيع ملف الإعدادات (حقن قيم الـ SDK والتوقيع)
+            # 2. ترقيع ملف الإعدادات بالمسارات والقيم الصحيحة
+            # إصلاح الـ SDK الفارغ (كما ظهر في ملفك السابق)
             sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
             
-            # إزالة أي إعدادات توقيع قديمة وإضافتها من جديد
+            # حقن بيانات التوقيع (حذف القديم وإضافة الجديد)
             sed -i '/keystore\/debug/d' "$PRESET_FILE"
             sed -i '/keystore\/release/d' "$PRESET_FILE"
             sed -i "/package\/signed=true/a keystore/debug=\"$ABS_KEY\"\nkeystore/debug_user=\"lamoushi_key\"\nkeystore/debug_password=\"lamoushi2026\"\nkeystore/release=\"$ABS_KEY\"\nkeystore/release_user=\"lamoushi_key\"\nkeystore/release_password=\"lamoushi2026\"" "$PRESET_FILE"
             
+            # ضبط مسار التصدير النهائي
             sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
-            echo "✅ تم ترقيع ملف التصدير."
+          else
+            echo "❌ خطأ: لم يتم العثور على lamoushi.keystore.jks في جذر المستودع!"
+            exit 1
           fi
 
-          # 3. إعداد المكتبة وصلاحياتها
-          if [ ! -z "$SO_FILE" ]; then
-            GODOT_RES_PATH=$(echo "$SO_FILE" | sed "s|^$PROJECT_ROOT/|res://|")
-            echo "✅ المكتبة مكتشفة في: $GODOT_RES_PATH"
-            
-            # إعطاء صلاحيات كاملة (قراءة، كتابة، تنفيذ) لفك قيد النظام
+          # 3. معالجة المكتبة (ffmpeg) بناءً على المسار في صورك
+          SO_FILE="$PROJECT_ROOT/addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          if [ -f "$SO_FILE" ]; then
             chmod 777 "$SO_FILE"
-            chmod -R 777 "$PROJECT_ROOT/addons"
+            # حذف ملفات الـ UID والـ Import القديمة لإجبار السيرفر على إعادة الاستيراد
+            find "$PROJECT_ROOT" -name "*.uid" -delete
+            find "$PROJECT_ROOT" -name "*.import" -delete
             
-            cat <<EOF > "$GD_PATH/gdffmpeg.gdextension"
+            # تحديث ملف الـ .gdextension بالمسار الصحيح
+            cat <<EOF > "$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
           [configuration]
           entry_symbol = "gdffmpeg_init"
           compatibility_minimum = "4.1"
           [libraries]
-          linux.debug.x86_64 = "$GODOT_RES_PATH"
-          linux.release.x86_64 = "$GODOT_RES_PATH"
-          android.release.arm64 = "$GODOT_RES_PATH"
-          android.debug.arm64   = "$GODOT_RES_PATH"
+          android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           EOF
           fi
+
 
       - name: Create Godot Editor Settings
         run: |
