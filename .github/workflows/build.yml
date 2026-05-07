@@ -73,9 +73,10 @@ jobs:
             mv templates/* ~/.local/share/godot/export_templates/4.6.2.stable/
           fi
 
-      - name: Auto-Patch Project Files
+            - name: Auto-Patch Project Files
         run: |
-          # 1. إصلاح ملف GDExtension بناءً على هيكلة المجلدات لديك (bin folder)
+          # 1. إصلاح GDExtension وإضافة مكتبة "وهمية" لنظام لينكس لمنع توقف المحرك
+          # غودوت يحتاج لرؤية إدخال للنظام الحالي (linux) حتى لو لم نستخدمه
           EXT_PATH="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
           if [ -d "khayel/addons/gdffmpeg" ]; then
             mkdir -p khayel/addons/gdffmpeg/bin
@@ -84,32 +85,38 @@ jobs:
           compatibility_minimum = "4.1"
 
           [libraries]
+          linux.debug.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          linux.release.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           android.release.arm32 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm32.so"
           android.debug.arm32   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm32.so"' > "$EXT_PATH"
-            echo "✅ GDExtension patched with bin paths."
+            echo "✅ GDExtension patched with Linux dummy paths to bypass editor checks."
           fi
 
-          # 2. إصلاح ملف Presets ليتوافق مع بيئة البناء الآلي
+          # 2. إصلاح الـ Presets وتجاوز أخطاء التكوين
           PRESET_FILE="khayel/export_presets.cfg"
           if [ -f "$PRESET_FILE" ]; then
-            # إلغاء التوقيع الإجباري (لأننا نبني Debug APK حالياً)
+            # إلغاء التوقيع الإجباري
             sed -i 's/package\/signed=true/package\/signed=false/g' "$PRESET_FILE"
             
-            # تفعيل Gradle Build (مطلوب لـ LamoushiAds)
+            # تفعيل Gradle Build وإضافة المسارات المفقودة
             sed -i 's/gradle_build\/use_gradle_build=false/gradle_build\/use_gradle_build=true/g' "$PRESET_FILE"
             
-            # ضبط نسخ الـ SDK (إذا كانت فارغة في ملفك)
+            # هذه الأسطر حاسمة: ملء الفراغات التي تسبب "Configuration Errors"
             sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
             sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
             
-            # التأكد من دعم المعماريات المطلوبة
+            # التأكد من تفعيل معماريات الأندرويد
             sed -i 's/architectures\/arm64-v8a=false/architectures\/arm64-v8a=true/g' "$PRESET_FILE"
             sed -i 's/architectures\/armeabi-v7a=false/architectures\/armeabi-v7a=true/g' "$PRESET_FILE"
             
-            echo "✅ export_presets.cfg updated successfully."
+            # التأكد من مسار تصدير الملف APK (تغييره لمسار محلي بسيط)
+            sed -i 's|export_path=.*|export_path="build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
+
+            echo "✅ Presets fixed and export path reset."
           fi
+
 
       - name: Create Godot Editor Settings
         run: |
