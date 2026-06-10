@@ -67,7 +67,7 @@ jobs:
             mv templates/* "$TEMPLATE_PATH/"
           fi
 
-      - - name: Auto-Patch & GDExtension Fix (Smart Bypass)
+      - name: Auto-Patch & GDExtension Fix (Smart Bypass)
         run: |
           PROJECT_ROOT="khayel"
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
