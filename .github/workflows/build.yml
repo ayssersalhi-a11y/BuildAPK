@@ -67,7 +67,7 @@ jobs:
             mv templates/* "$TEMPLATE_PATH/"
           fi
 
-      - name: Auto-Patch & GDExtension Fix (Smart Bypass)
+      - - name: Auto-Patch & GDExtension Fix (Smart Bypass)
         run: |
           PROJECT_ROOT="khayel"
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
@@ -81,7 +81,6 @@ jobs:
           if [ -f "$KEY_SOURCE" ]; then
             cp "$KEY_SOURCE" "$PROJECT_ROOT/lamoushi.keystore.jks"
           else
-            # إنشاء ملف توقيع وهمي مؤقت إن لم يعثر عليه لمنع توقف السكريبت
             touch "$PROJECT_ROOT/lamoushi.keystore.jks"
           fi
           ABS_KEY=$(realpath "$PROJECT_ROOT/lamoushi.keystore.jks")
@@ -97,22 +96,17 @@ jobs:
           sed -i 's/architectures\/arm64-v8a=false/architectures\/arm64-v8a=true/g' "$PRESET_FILE"
           sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
 
-          # 4. الخدعة الذكية: إنشاء ملف فارغ تماماً لخداع المحرك على السيرفر
-          # هذا يمنع الغودوت من الانهيار أثناء الاستيراد الأولي (Import) على السيرفر لينكس
-          echo "" > "$BIN_PATH/libgdffmpeg.linux.x86_64.so"
-          echo "✅ تم إنشاء ملف خداع النظام لمنع الانهيار."
-
-          # 5. إعادة كتابة ملف التعريف بمسارات واضحة (مع الإبقاء على ملفات أندرويد الفعلية)
+          # 4. الحل الجذري: إعادة كتابة ملف الـ .gdextension للأندرويد فقط وحذف اللينكس تماماً
+          # هذا يجعل غودوت على السيرفر لا يبحث عن ملف اللينكس المفقود نهائياً
           cat <<EOF > "$GD_EXT_PATH"
           [configuration]
           entry_symbol = "gdffmpeg_init"
           compatibility_minimum = "4.1"
           [libraries]
-          linux.debug.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"
-          linux.release.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"
           android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           EOF
+          echo "✅ تم تعديل ملف الإضافة وتوجيهه للأندرويد فقط بنجاح."
 
       - name: Create Godot Editor Settings
         run: |
