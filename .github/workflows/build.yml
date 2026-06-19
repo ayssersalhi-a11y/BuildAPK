@@ -128,6 +128,14 @@ jobs:
           echo "🛠 ضبط صلاحيات ملفات المكتبات..."
           chmod +x khayel/addons/gdffmpeg/bin/*.so
           ls -l khayel/addons/gdffmpeg/bin/
+      - name: Debug and Sanitize File Paths
+        run: |
+          echo "🔍 فحص المجلدات..."
+          find khayel/addons/gdffmpeg/bin -type f
+          echo "📂 تصحيح المسارات..."
+          # التأكد من أن المجلدات والملفات بالاسم الصحيح
+          mv khayel/addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so khayel/addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so || true
+          chmod 777 khayel/addons/gdffmpeg/bin/*.so
           
       - name: Final Build APK (Virtual Desktop Mode)
         run: |
