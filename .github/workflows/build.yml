@@ -1,4 +1,4 @@
-Name: "Build Khayel APK - professional Power Edition"
+name: "Build Khayel APK - professional Power Edition"
 
 on:
   push: 
