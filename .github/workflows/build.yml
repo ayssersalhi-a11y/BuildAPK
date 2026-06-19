@@ -1,4 +1,4 @@
-name: "Build Khayel APK - professional Power Edition"
+name: "Build Khayel APK - Final Professional Edition"
 
 on:
   push: 
@@ -18,36 +18,17 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Professional Dependencies (Modern Ubuntu)
+      - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk wget unzip sed xvfb libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libgbm1 libvulkan1 libfontconfig1
+          sudo apt-get install -y openjdk-17-jdk wget unzip sed xvfb libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libgbm1 libvulkan1 libfontconfig1 liblzma-dev
           pip install --upgrade gdown
-
-      - name: Cache Management
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.ANDROID_HOME }}
-            ~/.local/share/godot/export_templates
-            ./godot
-          key: ${{ runner.os }}-pro-build-${{ env.GODOT_VERSION }}-v4
-
-      - name: Setup Android SDK
-        run: |
-          if [ ! -d "$ANDROID_HOME/cmdline-tools" ]; then
-            mkdir -p $ANDROID_HOME/cmdline-tools
-            cd $ANDROID_HOME/cmdline-tools
-            wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-            unzip -q commandlinetools-linux-11076708_latest.zip
-            mv cmdline-tools latest
-            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "build-tools;34.0.0" "platforms;android-34"
-          fi
 
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
-          gdown "https://drive.google.com/file/d/1zGxsAXft1LwJgwarrnCe8fv3bMHbg03D/view?usp=drivesdk" -O khayel.zip
+          # ضع رابط الملف الجديد هنا
+          gdown "رابط_ملفك_الجديد_على_درايف" -O khayel.zip
           unzip -qo khayel.zip -d .
 
       - name: Setup Godot Engine & Templates
@@ -59,45 +40,28 @@ jobs:
             chmod +x godot
           fi
           TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.6.2.stable"
-          if [ ! -d "$TEMPLATE_PATH" ]; then
-            mkdir -p "$TEMPLATE_PATH"
-            wget -q https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_export_templates.tpz
-            unzip -qo Godot_v4.6.2-stable_export_templates.tpz
-            mv templates/* "$TEMPLATE_PATH/"
-          fi
+          mkdir -p "$TEMPLATE_PATH"
+          wget -q https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_export_templates.tpz
+          unzip -qo Godot_v4.6.2-stable_export_templates.tpz
+          mv templates/* "$TEMPLATE_PATH/"
 
-
-      - name: Create Clean Export Presets & Verify GDExtension
+      - name: Prepare Export & Fix Extension
         run: |
           PROJECT_ROOT="khayel"
-          PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
-          GD_EXT_PATH="$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
-          # الحصول على المسار المطلق للمشروع
-          ABS_PROJECT_ROOT=$(realpath "$PROJECT_ROOT")
-          
-          # 1. إنشاء ملف إعدادات تصدير نظيف
-          cat <<EOF > "$PRESET_FILE"
+          # 1. إعداد الـ Preset الصحيح
+          cat <<EOF > "$PROJECT_ROOT/export_presets.cfg"
           [preset.0]
           name="Android"
           platform="Android"
           runnable=true
-          dedicated_server=false
-          custom_template/debug=""
-          custom_template/release=""
-          debug_export=false
-          embedded_pck=true
-          export_path="../build/android/Khayel_Final.apk"
-          packaging_policy=0
           [preset.0.options]
           gradle_build/use_gradle_build=true
-          gradle_build/min_sdk="24"
-          gradle_build/target_sdk="34"
           package/signed=false
           architectures/arm64-v8a=true
           EOF
-
-          # 2. تحديث ملف الإضافة بمسار دقيق (استخدام المسار النسبي الصحيح)
-          cat <<EOF > "$GD_EXT_PATH"
+          
+          # 2. إعداد الـ Extension (شامل للينكس للفحص)
+          cat <<EOF > "$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
           [configuration]
           entry_symbol = "gdffmpeg_init"
           compatibility_minimum = "4.1"
@@ -107,47 +71,31 @@ jobs:
           linux.release.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"
           linux.debug.x86_64   = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"
           EOF
-          
-          echo "✅ تم تحديث ملف الإضافة بمسارات دقيقة."
 
-
-
-      - name: Create Godot Editor Settings
+      - name: Setup Android Environment
         run: |
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+          unzip -q tools.zip -d $ANDROID_HOME/cmdline-tools
+          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "build-tools;34.0.0" "platforms;android-34"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
           mkdir -p ~/.config/godot
           echo '[gd_resource type="EditorSettings" format=3]
           [resource]
-          export/android/sdk_path = "${{ env.ANDROID_HOME }}"
-          export/android/android_sdk_path = "${{ env.ANDROID_HOME }}"
-          export/android/jdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' > ~/.config/godot/editor_settings-4.6.tres
+          export/android/sdk_path = "${{ env.ANDROID_HOME }}"' > ~/.config/godot/editor_settings-4.6.tres
 
-      - name: Accept Android Licenses
-        run: yes | ${{ env.ANDROID_HOME }}/cmdline-tools/latest/bin/sdkmanager --licenses
-      - name: Fix Library Permissions
+      - name: Final Adjustments & Build
         run: |
-          echo "🛠 ضبط صلاحيات ملفات المكتبات..."
           chmod +x khayel/addons/gdffmpeg/bin/*.so
-          ls -l khayel/addons/gdffmpeg/bin/
-      - name: Debug and Sanitize File Paths
-        run: |
-          echo "🔍 فحص المجلدات..."
-          find khayel/addons/gdffmpeg/bin -type f
-          echo "📂 تصحيح المسارات..."
-          # التأكد من أن المجلدات والملفات بالاسم الصحيح
-          mv khayel/addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so khayel/addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so || true
-          chmod 777 khayel/addons/gdffmpeg/bin/*.so
+          # إزالة مكتبة اللينكس من الـ extension قبل التصدير لمنع تعارض الـ lzma
+          sed -i '/linux\./d' khayel/addons/gdffmpeg/gdffmpeg.gdextension
           
-      - name: Final Build APK (Virtual Desktop Mode)
-        run: |
           mkdir -p build/android
-          PROJECT_ROOT="khayel"
-          
-          echo "🚀 التصدير النهائي للأندرويد..."
-          # إضافة --no-doc-cache و --headless لتسريع العملية وتجاوز أخطاء المحرر
-          xvfb-run ./godot --headless --path "$PROJECT_ROOT" --export-release "Android" build/android/Khayel_Final.apk --verbose
+          xvfb-run ./godot --headless --path "khayel" --export-release "Android" build/android/Khayel_Final.apk
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Khayel-APK-Final
+          name: Khayel-APK
           path: build/android/Khayel_Final.apk
