@@ -66,7 +66,7 @@ jobs:
             mv templates/* "$TEMPLATE_PATH/"
           fi
 
-      - name: Create Clean Export Presets & Verify GDExtension
+
       - name: Create Clean Export Presets & Verify GDExtension
         run: |
           PROJECT_ROOT="khayel"
