@@ -27,9 +27,10 @@ jobs:
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
-          # ضع رابط الملف الجديد هنا
-          gdown "https://drive.google.com/file/d/1zGxsAXft1LwJgwarrnCe8fv3bMHbg03D/view?usp=drivesdk" -O khayel.zip
+          gdown "رابط_الملف_الجديد" -O khayel.zip
           unzip -qo khayel.zip -d .
+          # هذا السطر هو الأهم: نحذف إعدادات التوقيع القديمة التي تأتي من جهازك
+          rm -f khayel/export_presets.cfg
 
       - name: Setup Godot Engine & Templates
         run: |
@@ -49,7 +50,7 @@ jobs:
         run: |
           PROJECT_ROOT="khayel"
           
-          # 1. إجبار إعدادات التصدير على عدم طلب توقيع
+          # إعداد ملف تصدير جديد تماماً وبدون أي توقيع
           cat <<EOF > "$PROJECT_ROOT/export_presets.cfg"
           [preset.0]
           name="Android"
@@ -62,7 +63,7 @@ jobs:
           architectures/arm64-v8a=true
           EOF
           
-          # 2. إنشاء ملف إضافات "ذكي" لا يسبب أخطاء
+          # تحديث الـ Extension ليكون متوافقاً تماماً
           cat <<EOF > "$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
           [configuration]
           entry_symbol = "gdffmpeg_init"
@@ -70,7 +71,6 @@ jobs:
           [libraries]
           android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
-          linux.release.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"
           EOF
 
 
