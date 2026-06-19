@@ -66,33 +66,39 @@ jobs:
             mv templates/* "$TEMPLATE_PATH/"
           fi
 
-      - name: Patch Export Presets & Verify GDExtension
+      - name: Create Clean Export Presets & Verify GDExtension
         run: |
           PROJECT_ROOT="khayel"
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
           
-          # 1. تنظيف ملفات الكاش
-          find "$PROJECT_ROOT" -name "*.uid" -delete
-          find "$PROJECT_ROOT" -name "*.import" -delete
+          # إنشاء ملف إعدادات أندرويد جديد ونظيف
+          cat <<EOF > "$PRESET_FILE"
+          [preset.0]
+          name="Android"
+          platform="Android"
+          runnable=true
+          dedicated_server=false
+          custom_template/debug=""
+          custom_template/release=""
+          debug_export=false
+          embedded_pck=true
+          export_path="../build/android/Khayel_Final.apk"
+          packaging_policy=0
+          [preset.0.options]
+          gradle_build/min_sdk="24"
+          gradle_build/target_sdk="34"
+          package/signed=false
+          architectures/arm64-v8a=true
+          EOF
 
-          # 2. تعديل ملف التصدير ليصبح غير موقع (Signed = false)
-          # نقوم بتغيير القيمة لضمان عدم توقف عملية البناء بسبب الكي ستور
-          sed -i 's/package\/signed=true/package\/signed=false/g' "$PRESET_FILE"
-          
-          # 3. إعدادات الأندرويد الأساسية
-          sed -i 's/gradle_build\/min_sdk=""/gradle_build\/min_sdk="24"/g' "$PRESET_FILE"
-          sed -i 's/gradle_build\/target_sdk=""/gradle_build\/target_sdk="34"/g' "$PRESET_FILE"
-          sed -i 's/architectures\/arm64-v8a=false/architectures\/arm64-v8a=true/g' "$PRESET_FILE"
-          sed -i 's|export_path=.*|export_path="../build/android/Khayel_Final.apk"|g' "$PRESET_FILE"
-
-          # 4. التأكد من وجود ملف الإضافة
+          # التأكد من وجود ملف الإضافة
           GD_EXT_PATH="$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
-          if [ -f "$GD_EXT_PATH" ]; then
-            echo "✅ ملف الإضافة موجود، جاري التصدير بدون توقيع (Debug/Unsigned)..."
-          else
+          if [ ! -f "$GD_EXT_PATH" ]; then
             echo "❌ خطأ: لم يتم العثور على ملف gdffmpeg.gdextension"
             exit 1
           fi
+          echo "✅ تم إنشاء إعدادات تصدير نظيفة وتأكيد وجود الإضافة."
+
 
 
       - name: Create Godot Editor Settings
