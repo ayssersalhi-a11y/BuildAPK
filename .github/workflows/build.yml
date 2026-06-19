@@ -116,12 +116,9 @@ jobs:
         run: |
           mkdir -p build/android
           PROJECT_ROOT="khayel"
-          rm -rf "$PROJECT_ROOT/.godot"
-          
-          echo "🔄 استيراد الموارد..."
-          xvfb-run ./godot --headless --path "$PROJECT_ROOT" --editor --quit --verbose || true
           
           echo "🚀 التصدير النهائي للأندرويد..."
+          # إضافة --no-doc-cache و --headless لتسريع العملية وتجاوز أخطاء المحرر
           xvfb-run ./godot --headless --path "$PROJECT_ROOT" --export-release "Android" build/android/Khayel_Final.apk --verbose
 
       - name: Upload APK Artifact
