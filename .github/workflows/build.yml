@@ -48,7 +48,8 @@ jobs:
       - name: Prepare Export & Fix Extension
         run: |
           PROJECT_ROOT="khayel"
-          # 1. إعداد الـ Preset الصحيح
+          
+          # 1. إجبار إعدادات التصدير على عدم طلب توقيع
           cat <<EOF > "$PROJECT_ROOT/export_presets.cfg"
           [preset.0]
           name="Android"
@@ -57,10 +58,11 @@ jobs:
           [preset.0.options]
           gradle_build/use_gradle_build=true
           package/signed=false
+          package/debug_build=true
           architectures/arm64-v8a=true
           EOF
           
-          # 2. إعداد الـ Extension (شامل للينكس للفحص)
+          # 2. إنشاء ملف إضافات "ذكي" لا يسبب أخطاء
           cat <<EOF > "$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
           [configuration]
           entry_symbol = "gdffmpeg_init"
@@ -69,8 +71,8 @@ jobs:
           android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
           linux.release.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"
-          linux.debug.x86_64   = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"
           EOF
+
 
       - name: Setup Android Environment
         run: |
