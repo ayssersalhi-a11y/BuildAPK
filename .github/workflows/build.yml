@@ -71,7 +71,7 @@ jobs:
           PROJECT_ROOT="khayel"
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
           
-          # إنشاء ملف إعدادات أندرويد جديد ونظيف
+          # إنشاء ملف إعدادات أندرويد جديد ونظيف (تمت إضافة خيار استخدام Gradle)
           cat <<EOF > "$PRESET_FILE"
           [preset.0]
           name="Android"
@@ -85,6 +85,7 @@ jobs:
           export_path="../build/android/Khayel_Final.apk"
           packaging_policy=0
           [preset.0.options]
+          gradle_build/use_gradle_build=true
           gradle_build/min_sdk="24"
           gradle_build/target_sdk="34"
           package/signed=false
@@ -97,7 +98,8 @@ jobs:
             echo "❌ خطأ: لم يتم العثور على ملف gdffmpeg.gdextension"
             exit 1
           fi
-          echo "✅ تم إنشاء إعدادات تصدير نظيفة وتأكيد وجود الإضافة."
+          echo "✅ تم إنشاء إعدادات تصدير نظيفة (مع تفعيل Gradle) وتأكيد وجود الإضافة."
+
 
 
 
