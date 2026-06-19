@@ -112,7 +112,12 @@ jobs:
 
       - name: Accept Android Licenses
         run: yes | ${{ env.ANDROID_HOME }}/cmdline-tools/latest/bin/sdkmanager --licenses
-
+      - name: Fix Library Permissions
+        run: |
+          echo "🛠 ضبط صلاحيات ملفات المكتبات..."
+          chmod +x khayel/addons/gdffmpeg/bin/*.so
+          ls -l khayel/addons/gdffmpeg/bin/
+          
       - name: Final Build APK (Virtual Desktop Mode)
         run: |
           mkdir -p build/android
