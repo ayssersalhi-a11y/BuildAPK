@@ -67,11 +67,15 @@ jobs:
           fi
 
       - name: Create Clean Export Presets & Verify GDExtension
+      - name: Create Clean Export Presets & Verify GDExtension
         run: |
           PROJECT_ROOT="khayel"
           PRESET_FILE="$PROJECT_ROOT/export_presets.cfg"
+          GD_EXT_PATH="$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
+          # الحصول على المسار المطلق للمشروع
+          ABS_PROJECT_ROOT=$(realpath "$PROJECT_ROOT")
           
-          # إنشاء ملف إعدادات أندرويد جديد ونظيف (تمت إضافة خيار استخدام Gradle)
+          # 1. إنشاء ملف إعدادات تصدير نظيف
           cat <<EOF > "$PRESET_FILE"
           [preset.0]
           name="Android"
@@ -92,14 +96,19 @@ jobs:
           architectures/arm64-v8a=true
           EOF
 
-          # التأكد من وجود ملف الإضافة
-          GD_EXT_PATH="$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
-          if [ ! -f "$GD_EXT_PATH" ]; then
-            echo "❌ خطأ: لم يتم العثور على ملف gdffmpeg.gdextension"
-            exit 1
-          fi
-          echo "✅ تم إنشاء إعدادات تصدير نظيفة (مع تفعيل Gradle) وتأكيد وجود الإضافة."
-
+          # 2. تحديث ملف الإضافة بمسار دقيق (استخدام المسار النسبي الصحيح)
+          cat <<EOF > "$GD_EXT_PATH"
+          [configuration]
+          entry_symbol = "gdffmpeg_init"
+          compatibility_minimum = "4.1"
+          [libraries]
+          android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          linux.release.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"
+          linux.debug.x86_64   = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"
+          EOF
+          
+          echo "✅ تم تحديث ملف الإضافة بمسارات دقيقة."
 
 
 
