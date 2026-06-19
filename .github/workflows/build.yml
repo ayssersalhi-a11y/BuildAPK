@@ -28,7 +28,7 @@ jobs:
         run: |
           rm -rf khayel khayel.zip
           # ضع رابط الملف الجديد هنا
-          gdown "رابط_ملفك_الجديد_على_درايف" -O khayel.zip
+          gdown "https://drive.google.com/file/d/1zGxsAXft1LwJgwarrnCe8fv3bMHbg03D/view?usp=drivesdk" -O khayel.zip
           unzip -qo khayel.zip -d .
 
       - name: Setup Godot Engine & Templates
