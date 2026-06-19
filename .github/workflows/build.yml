@@ -31,7 +31,11 @@ jobs:
           unzip -qo khayel.zip -d .
           # هذا السطر هو الأهم: نحذف إعدادات التوقيع القديمة التي تأتي من جهازك
           rm -f khayel/export_presets.cfg
-
+      - name: Clean Old Configs
+        run: |
+          rm -f khayel/export_presets.cfg
+          rm -rf khayel/.godot/editor
+          
       - name: Setup Godot Engine & Templates
         run: |
           if [ ! -f "./godot" ]; then
@@ -50,7 +54,7 @@ jobs:
         run: |
           PROJECT_ROOT="khayel"
           
-          # إعداد ملف تصدير جديد تماماً وبدون أي توقيع
+          # إنشاء ملف إعدادات جديد تماماً يضمن عدم التوقيع
           cat <<EOF > "$PROJECT_ROOT/export_presets.cfg"
           [preset.0]
           name="Android"
@@ -63,7 +67,7 @@ jobs:
           architectures/arm64-v8a=true
           EOF
           
-          # تحديث الـ Extension ليكون متوافقاً تماماً
+          # تحديث الـ Extension لتجنب خطأ المكتبة
           cat <<EOF > "$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
           [configuration]
           entry_symbol = "gdffmpeg_init"
