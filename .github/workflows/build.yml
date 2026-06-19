@@ -47,7 +47,7 @@ jobs:
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
-          gdown "https://drive.google.com/uc?id=1WqPJVISx4dlJtZHERoZQ1m_J1MyXbR7x" -O khayel.zip
+          gdown "https://drive.google.com/file/d/1zGxsAXft1LwJgwarrnCe8fv3bMHbg03D/view?usp=drivesdk" -O khayel.zip
           unzip -qo khayel.zip -d .
 
       - name: Setup Godot Engine & Templates
