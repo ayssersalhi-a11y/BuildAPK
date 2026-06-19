@@ -27,7 +27,7 @@ jobs:
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
-          gdown "رابط_الملف_الجديد" -O khayel.zip
+          gdown "https://drive.google.com/file/d/1zGxsAXft1LwJgwarrnCe8fv3bMHbg03D/view?usp=drivesdk" -O khayel.zip
           unzip -qo khayel.zip -d .
           # هذا السطر هو الأهم: نحذف إعدادات التوقيع القديمة التي تأتي من جهازك
           rm -f khayel/export_presets.cfg
