@@ -39,25 +39,50 @@ jobs:
 
       - name: Setup Godot Engine & Templates
         run: |
-          # تحميل Godot 4.7
           wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip
           unzip -qo Godot_v4.7-stable_linux.x86_64.zip
           mv Godot_v4.7-stable_linux.x86_64 godot
           chmod +x godot
 
-          # تحميل Export Templates لـ 4.7
           TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
           mkdir -p "$TEMPLATE_PATH"
           wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz
           unzip -qo Godot_v4.7-stable_export_templates.tpz
           mv templates/* "$TEMPLATE_PATH/"
 
-      - name: Prepare Export Config & Fix Extension
+      - name: Fix GDExtension (Remove linux entry)
+        run: |
+          # نكتب الملف نظيفاً بدون أي إشارة لـ linux من البداية
+          cat > khayel/addons/gdffmpeg/gdffmpeg.gdextension << 'EOF'
+          [configuration]
+          entry_symbol = "gdffmpeg_init"
+          compatibility_minimum = "4.1"
+
+          [libraries]
+          android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          EOF
+
+          chmod +x khayel/addons/gdffmpeg/bin/*.so
+
+      - name: Generate Debug Keystore
+        run: |
+          keytool -genkey -v \
+            -keystore khayel-debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Prepare Export Config
         run: |
           PROJECT_ROOT="khayel"
+          KEYSTORE_PATH="$(pwd)/khayel-debug.keystore"
 
-          # إنشاء ملف export_presets.cfg جديد وصحيح
-          cat <<EOF > "$PROJECT_ROOT/export_presets.cfg"
+          cat > "$PROJECT_ROOT/export_presets.cfg" << EOF
           [preset.0]
 
           name="Android"
@@ -72,27 +97,21 @@ jobs:
 
           [preset.0.options]
 
-          gradle_build/use_gradle_build=true
-          gradle_build/gradle_build_directory=""
+          gradle_build/use_gradle_build=false
           package/unique_name="com.khayel.game"
           package/name="Khayel"
-          package/signed=false
-          package/debug_build=false
+          package/signed=true
+          package/debug_build=true
           architectures/arm64-v8a=true
           architectures/armeabi-v7a=false
           architectures/x86=false
           architectures/x86_64=false
-          EOF
-
-          # إصلاح ملف الـ Extension
-          cat <<EOF > "$PROJECT_ROOT/addons/gdffmpeg/gdffmpeg.gdextension"
-          [configuration]
-          entry_symbol = "gdffmpeg_init"
-          compatibility_minimum = "4.1"
-
-          [libraries]
-          android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
-          android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          keystore/debug="$KEYSTORE_PATH"
+          keystore/debug_user="androiddebugkey"
+          keystore/debug_password="android"
+          keystore/release="$KEYSTORE_PATH"
+          keystore/release_user="androiddebugkey"
+          keystore/release_password="android"
           EOF
 
       - name: Setup Android Environment
@@ -111,25 +130,23 @@ jobs:
 
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
-          # إعداد Godot Editor Settings
           mkdir -p ~/.config/godot
-          cat <<EOF > ~/.config/godot/editor_settings-4.tres
+          cat > ~/.config/godot/editor_settings-4.tres << EOF
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
           export/android/sdk_path = "$ANDROID_HOME"
+          export/android/debug_keystore = "$(pwd)/khayel-debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
           EOF
 
       - name: Build APK
         run: |
-          chmod +x khayel/addons/gdffmpeg/bin/*.so
-
-          # حذف مكتبة Linux لمنع تعارض lzma
-          sed -i '/linux\./d' khayel/addons/gdffmpeg/gdffmpeg.gdextension
-
           mkdir -p build/android
 
-          xvfb-run ./godot --headless --path "khayel" --export-release "Android" "../../build/android/Khayel_Final.apk"
+          xvfb-run ./godot --headless --path "khayel" \
+            --export-debug "Android" "../../build/android/Khayel_Final.apk"
 
       - name: Verify APK Exists
         run: |
@@ -137,7 +154,8 @@ jobs:
             echo "❌ APK not found! Build failed."
             exit 1
           else
-            echo "✅ APK built successfully: $(du -sh build/android/Khayel_Final.apk)"
+            echo "✅ APK built successfully!"
+            du -sh build/android/Khayel_Final.apk
           fi
 
       - name: Upload APK
