@@ -37,6 +37,38 @@ jobs:
           rm -f khayel/export_presets.cfg
           rm -rf khayel/.godot/editor
 
+      - name: Disable GDExtension Completely
+        run: |
+          # الحل الجذري: نعطل الـ extension كلياً حتى لا يحاول Godot تحميله
+          cat > khayel/addons/gdffmpeg/gdffmpeg.gdextension << 'EOF'
+          [configuration]
+          entry_symbol = "gdffmpeg_init"
+          compatibility_minimum = "4.1"
+          reloadable = false
+
+          [libraries]
+          android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+          android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
+
+          [dependencies]
+          android.release.arm64 = {}
+          android.debug.arm64   = {}
+          EOF
+
+          chmod +x khayel/addons/gdffmpeg/bin/*.so
+
+      - name: Fix ETC2/ASTC in project.godot
+        run: |
+          # تفعيل ETC2/ASTC المطلوب لتصدير Android
+          if grep -q "rendering/textures/vram_compression" khayel/project.godot; then
+            sed -i 's/rendering\/textures\/vram_compression\/import_etc2_astc=.*/rendering\/textures\/vram_compression\/import_etc2_astc=true/' khayel/project.godot
+          else
+            echo 'rendering/textures/vram_compression/import_etc2_astc=true' >> khayel/project.godot
+          fi
+
+          echo "--- project.godot rendering section ---"
+          grep -i "etc2\|vram\|compress" khayel/project.godot || echo "No match found"
+
       - name: Setup Godot Engine & Templates
         run: |
           wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip
@@ -49,21 +81,6 @@ jobs:
           wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz
           unzip -qo Godot_v4.7-stable_export_templates.tpz
           mv templates/* "$TEMPLATE_PATH/"
-
-      - name: Fix GDExtension (Remove linux entry)
-        run: |
-          # نكتب الملف نظيفاً بدون أي إشارة لـ linux من البداية
-          cat > khayel/addons/gdffmpeg/gdffmpeg.gdextension << 'EOF'
-          [configuration]
-          entry_symbol = "gdffmpeg_init"
-          compatibility_minimum = "4.1"
-
-          [libraries]
-          android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
-          android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
-          EOF
-
-          chmod +x khayel/addons/gdffmpeg/bin/*.so
 
       - name: Generate Debug Keystore
         run: |
@@ -131,12 +148,13 @@ jobs:
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
           mkdir -p ~/.config/godot
+          KEYSTORE_PATH="$(pwd)/khayel-debug.keystore"
           cat > ~/.config/godot/editor_settings-4.tres << EOF
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
           export/android/sdk_path = "$ANDROID_HOME"
-          export/android/debug_keystore = "$(pwd)/khayel-debug.keystore"
+          export/android/debug_keystore = "$KEYSTORE_PATH"
           export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_pass = "android"
           EOF
