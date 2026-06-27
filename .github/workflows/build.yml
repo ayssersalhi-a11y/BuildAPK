@@ -37,37 +37,24 @@ jobs:
           rm -f khayel/export_presets.cfg
           rm -rf khayel/.godot/editor
 
-      - name: Disable GDExtension Completely
+      - name: Fix All Project Files
         run: |
-          # الحل الجذري: نعطل الـ extension كلياً حتى لا يحاول Godot تحميله
-          cat > khayel/addons/gdffmpeg/gdffmpeg.gdextension << 'EOF'
-          [configuration]
-          entry_symbol = "gdffmpeg_init"
-          compatibility_minimum = "4.1"
-          reloadable = false
-
-          [libraries]
-          android.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
-          android.debug.arm64   = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"
-
-          [dependencies]
-          android.release.arm64 = {}
-          android.debug.arm64   = {}
-          EOF
-
+          # === 1. حذف GDExtension نهائياً من المشروع ===
+          printf '[configuration]\nentry_symbol = "gdffmpeg_init"\ncompatibility_minimum = "4.1"\nreloadable = false\n\n[libraries]\nandroid.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"\nandroid.debug.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"\n' > khayel/addons/gdffmpeg/gdffmpeg.gdextension
           chmod +x khayel/addons/gdffmpeg/bin/*.so
 
-      - name: Fix ETC2/ASTC in project.godot
-        run: |
-          # تفعيل ETC2/ASTC المطلوب لتصدير Android
-          if grep -q "rendering/textures/vram_compression" khayel/project.godot; then
-            sed -i 's/rendering\/textures\/vram_compression\/import_etc2_astc=.*/rendering\/textures\/vram_compression\/import_etc2_astc=true/' khayel/project.godot
+          # === 2. تفعيل ETC2/ASTC في project.godot ===
+          if grep -q "import_etc2_astc" khayel/project.godot; then
+            sed -i 's/rendering\/textures\/vram_compression\/import_etc2_astc=false/rendering\/textures\/vram_compression\/import_etc2_astc=true/' khayel/project.godot
           else
-            echo 'rendering/textures/vram_compression/import_etc2_astc=true' >> khayel/project.godot
+            printf '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n' >> khayel/project.godot
           fi
 
-          echo "--- project.godot rendering section ---"
-          grep -i "etc2\|vram\|compress" khayel/project.godot || echo "No match found"
+          # === DEBUG: طباعة الملفات للتحقق ===
+          echo "====== gdffmpeg.gdextension ======"
+          cat khayel/addons/gdffmpeg/gdffmpeg.gdextension
+          echo "====== project.godot (ETC2 line) ======"
+          grep -i "etc2\|vram" khayel/project.godot || echo "NOT FOUND - مشكلة!"
 
       - name: Setup Godot Engine & Templates
         run: |
@@ -96,45 +83,15 @@ jobs:
 
       - name: Prepare Export Config
         run: |
-          PROJECT_ROOT="khayel"
           KEYSTORE_PATH="$(pwd)/khayel-debug.keystore"
+          printf '[preset.0]\n\nname="Android"\nplatform="Android"\nrunnable=true\ndedicated_server=false\ncustom_features=""\nexport_filter="all_resources"\ninclude_filter=""\nexclude_filter=""\nexport_path="../../build/android/Khayel_Final.apk"\n\n[preset.0.options]\n\ngradle_build/use_gradle_build=false\npackage/unique_name="com.khayel.game"\npackage/name="Khayel"\npackage/signed=true\npackage/debug_build=true\narchitectures/arm64-v8a=true\narchitectures/armeabi-v7a=false\narchitectures/x86=false\narchitectures/x86_64=false\nkeystore/debug="%s"\nkeystore/debug_user="androiddebugkey"\nkeystore/debug_password="android"\nkeystore/release="%s"\nkeystore/release_user="androiddebugkey"\nkeystore/release_password="android"\n' "$KEYSTORE_PATH" "$KEYSTORE_PATH" > khayel/export_presets.cfg
 
-          cat > "$PROJECT_ROOT/export_presets.cfg" << EOF
-          [preset.0]
-
-          name="Android"
-          platform="Android"
-          runnable=true
-          dedicated_server=false
-          custom_features=""
-          export_filter="all_resources"
-          include_filter=""
-          exclude_filter=""
-          export_path="../../build/android/Khayel_Final.apk"
-
-          [preset.0.options]
-
-          gradle_build/use_gradle_build=false
-          package/unique_name="com.khayel.game"
-          package/name="Khayel"
-          package/signed=true
-          package/debug_build=true
-          architectures/arm64-v8a=true
-          architectures/armeabi-v7a=false
-          architectures/x86=false
-          architectures/x86_64=false
-          keystore/debug="$KEYSTORE_PATH"
-          keystore/debug_user="androiddebugkey"
-          keystore/debug_password="android"
-          keystore/release="$KEYSTORE_PATH"
-          keystore/release_user="androiddebugkey"
-          keystore/release_password="android"
-          EOF
+          echo "====== export_presets.cfg ======"
+          cat khayel/export_presets.cfg
 
       - name: Setup Android Environment
         run: |
           mkdir -p $ANDROID_HOME/cmdline-tools
-
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
           unzip -q tools.zip -d $ANDROID_HOME/cmdline-tools
           mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
@@ -147,22 +104,13 @@ jobs:
 
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
-          mkdir -p ~/.config/godot
           KEYSTORE_PATH="$(pwd)/khayel-debug.keystore"
-          cat > ~/.config/godot/editor_settings-4.tres << EOF
-          [gd_resource type="EditorSettings" format=3]
-
-          [resource]
-          export/android/sdk_path = "$ANDROID_HOME"
-          export/android/debug_keystore = "$KEYSTORE_PATH"
-          export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_pass = "android"
-          EOF
+          mkdir -p ~/.config/godot
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "androiddebugkey"\nexport/android/debug_keystore_pass = "android"\n' "$ANDROID_HOME" "$KEYSTORE_PATH" > ~/.config/godot/editor_settings-4.tres
 
       - name: Build APK
         run: |
           mkdir -p build/android
-
           xvfb-run ./godot --headless --path "khayel" \
             --export-debug "Android" "../../build/android/Khayel_Final.apk"
 
