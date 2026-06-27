@@ -23,7 +23,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jdk wget unzip sed xvfb \
             libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libgbm1 \
-            libvulkan1 libfontconfig1 liblzma-dev
+            libvulkan1 libfontconfig1 liblzma5 liblzma-dev
           pip install --upgrade gdown
 
       - name: Download & Extract Project
@@ -38,22 +38,29 @@ jobs:
 
       - name: Fix Project Files
         run: |
-          # === 1. gdffmpeg.gdextension: نتركه كما هو ===
+          # === 1. gdffmpeg: chmod فقط ===
           chmod +x khayel/addons/gdffmpeg/bin/*.so
 
-          # === 2. project.godot: نضيف ETC2/ASTC فقط ===
+          # === 2. project.godot: ETC2/ASTC ===
           if grep -q "import_etc2_astc" khayel/project.godot; then
             sed -i 's/import_etc2_astc=false/import_etc2_astc=true/' khayel/project.godot
           else
             printf '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n' >> khayel/project.godot
           fi
 
-          # === 3. export_presets.cfg: نغير المسارات فقط ===
+          # === 3. export_presets.cfg: تصحيح المسارات ===
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
           KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi_keystore.jks"
           mkdir -p "$(dirname $APK_PATH)"
 
+          # تصحيح مسار APK
           sed -i 's|export_path=.*|export_path="'"$APK_PATH"'"|' khayel/export_presets.cfg
+
+          # حذف custom_template القديم (سبب مشكلة 4.6.2)
+          sed -i 's|custom_template/debug=.*|custom_template/debug=""|' khayel/export_presets.cfg
+          sed -i 's|custom_template/release=.*|custom_template/release=""|' khayel/export_presets.cfg
+
+          # تصحيح الـ keystore
           sed -i 's|keystore/debug=.*|keystore/debug="'"$KEYSTORE_PATH"'"|' khayel/export_presets.cfg
           sed -i 's|keystore/debug_password=.*|keystore/debug_password="24ay58s.s24er58"|' khayel/export_presets.cfg
           sed -i 's|keystore/debug_user=.*|keystore/debug_user="lamoushi_key"|' khayel/export_presets.cfg
@@ -61,11 +68,11 @@ jobs:
           sed -i 's|keystore/release_password=.*|keystore/release_password="24ay58s.s24er58"|' khayel/export_presets.cfg
           sed -i 's|keystore/release_user=.*|keystore/release_user="lamoushi_key"|' khayel/export_presets.cfg
 
-          echo "====== export_path & keystore ======"
-          grep -E "export_path|keystore" khayel/export_presets.cfg
+          echo "====== export_path & keystore & template ======"
+          grep -E "export_path|keystore|custom_template" khayel/export_presets.cfg
           echo "====== ETC2 ======"
           grep -i "etc2\|vram" khayel/project.godot || echo "NOT FOUND"
-          echo "====== Keystore file exists? ======"
+          echo "====== Keystore exists? ======"
           ls -lh "$KEYSTORE_PATH" || echo "❌ KEYSTORE NOT FOUND!"
 
       - name: Setup Godot Engine & Templates
