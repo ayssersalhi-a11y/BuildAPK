@@ -37,21 +37,19 @@ jobs:
           rm -f khayel/export_presets.cfg
           rm -rf khayel/.godot
 
-      - name: Fix GDExtension & Project Files
+      - name: Fix Project Files
         run: |
-          # === الحل الحقيقي: نكتب الـ extension بالأسماء الصحيحة للمكتبتين ===
-          printf '[configuration]\nentry_symbol = "gdffmpeg_init"\ncompatibility_minimum = "4.1"\nreloadable = false\n\n[libraries]\nlinux.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"\nandroid.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"\nandroid.debug.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"\n' > khayel/addons/gdffmpeg/gdffmpeg.gdextension
-
+          # === gdffmpeg.gdextension: لا نعبث به، نتركه كما هو من الـ zip ===
           chmod +x khayel/addons/gdffmpeg/bin/*.so
 
-          # === ETC2/ASTC ===
+          # === ETC2/ASTC في project.godot ===
           if grep -q "import_etc2_astc" khayel/project.godot; then
             sed -i 's/import_etc2_astc=false/import_etc2_astc=true/' khayel/project.godot
           else
             printf '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n' >> khayel/project.godot
           fi
 
-          echo "====== gdffmpeg.gdextension ======"
+          echo "====== gdffmpeg.gdextension (original) ======"
           cat khayel/addons/gdffmpeg/gdffmpeg.gdextension
           echo "====== ETC2 ======"
           grep -i "etc2\|vram" khayel/project.godot || echo "NOT FOUND"
