@@ -37,10 +37,12 @@ jobs:
           rm -f khayel/export_presets.cfg
           rm -rf khayel/.godot
 
-      - name: Fix Project Files
+      - name: Fix GDExtension & Project Files
         run: |
-          # === حذف GDExtension كلياً - هذا هو الحل الوحيد ===
-          rm -rf khayel/addons/gdffmpeg
+          # === الحل الحقيقي: نكتب الـ extension بالأسماء الصحيحة للمكتبتين ===
+          printf '[configuration]\nentry_symbol = "gdffmpeg_init"\ncompatibility_minimum = "4.1"\nreloadable = false\n\n[libraries]\nlinux.x86_64 = "res://addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"\nandroid.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"\nandroid.debug.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"\n' > khayel/addons/gdffmpeg/gdffmpeg.gdextension
+
+          chmod +x khayel/addons/gdffmpeg/bin/*.so
 
           # === ETC2/ASTC ===
           if grep -q "import_etc2_astc" khayel/project.godot; then
@@ -49,8 +51,10 @@ jobs:
             printf '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n' >> khayel/project.godot
           fi
 
-          echo "✅ addons/gdffmpeg removed"
-          grep -i "etc2\|vram" khayel/project.godot || echo "ETC2 NOT FOUND"
+          echo "====== gdffmpeg.gdextension ======"
+          cat khayel/addons/gdffmpeg/gdffmpeg.gdextension
+          echo "====== ETC2 ======"
+          grep -i "etc2\|vram" khayel/project.godot || echo "NOT FOUND"
 
       - name: Setup Godot Engine & Templates
         run: |
@@ -79,7 +83,6 @@ jobs:
 
       - name: Prepare Export Config
         run: |
-          # مسار مطلق للـ APK وللـ keystore
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
           KEYSTORE_PATH="/home/runner/khayel-debug.keystore"
           mkdir -p "$(dirname $APK_PATH)"
