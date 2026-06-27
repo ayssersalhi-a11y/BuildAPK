@@ -32,27 +32,41 @@ jobs:
           gdown "https://drive.google.com/file/d/1zGxsAXft1LwJgwarrnCe8fv3bMHbg03D/view?usp=drivesdk" -O khayel.zip
           unzip -qo khayel.zip -d .
 
-      - name: Clean Old Configs & Cache
+      - name: Clean Old Cache
         run: |
-          rm -f khayel/export_presets.cfg
           rm -rf khayel/.godot
 
       - name: Fix Project Files
         run: |
-          # === gdffmpeg.gdextension: لا نعبث به، نتركه كما هو من الـ zip ===
+          # === 1. gdffmpeg.gdextension: نتركه كما هو ===
           chmod +x khayel/addons/gdffmpeg/bin/*.so
 
-          # === ETC2/ASTC في project.godot ===
+          # === 2. project.godot: نضيف ETC2/ASTC فقط ===
           if grep -q "import_etc2_astc" khayel/project.godot; then
             sed -i 's/import_etc2_astc=false/import_etc2_astc=true/' khayel/project.godot
           else
             printf '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n' >> khayel/project.godot
           fi
 
-          echo "====== gdffmpeg.gdextension (original) ======"
-          cat khayel/addons/gdffmpeg/gdffmpeg.gdextension
+          # === 3. export_presets.cfg: نغير المسارات فقط ===
+          APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
+          KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi_keystore.jks"
+          mkdir -p "$(dirname $APK_PATH)"
+
+          sed -i 's|export_path=.*|export_path="'"$APK_PATH"'"|' khayel/export_presets.cfg
+          sed -i 's|keystore/debug=.*|keystore/debug="'"$KEYSTORE_PATH"'"|' khayel/export_presets.cfg
+          sed -i 's|keystore/debug_password=.*|keystore/debug_password="24ay58s.s24er58"|' khayel/export_presets.cfg
+          sed -i 's|keystore/debug_user=.*|keystore/debug_user="lamoushi_key"|' khayel/export_presets.cfg
+          sed -i 's|keystore/release=.*|keystore/release="'"$KEYSTORE_PATH"'"|' khayel/export_presets.cfg
+          sed -i 's|keystore/release_password=.*|keystore/release_password="24ay58s.s24er58"|' khayel/export_presets.cfg
+          sed -i 's|keystore/release_user=.*|keystore/release_user="lamoushi_key"|' khayel/export_presets.cfg
+
+          echo "====== export_path & keystore ======"
+          grep -E "export_path|keystore" khayel/export_presets.cfg
           echo "====== ETC2 ======"
           grep -i "etc2\|vram" khayel/project.godot || echo "NOT FOUND"
+          echo "====== Keystore file exists? ======"
+          ls -lh "$KEYSTORE_PATH" || echo "❌ KEYSTORE NOT FOUND!"
 
       - name: Setup Godot Engine & Templates
         run: |
@@ -66,30 +80,6 @@ jobs:
           wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz
           unzip -qo Godot_v4.7-stable_export_templates.tpz
           mv templates/* "$TEMPLATE_PATH/"
-
-      - name: Generate Debug Keystore
-        run: |
-          keytool -genkey -v \
-            -keystore /home/runner/khayel-debug.keystore \
-            -alias androiddebugkey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass android \
-            -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US"
-
-      - name: Prepare Export Config
-        run: |
-          APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
-          KEYSTORE_PATH="/home/runner/khayel-debug.keystore"
-          mkdir -p "$(dirname $APK_PATH)"
-
-          printf '[preset.0]\n\nname="Android"\nplatform="Android"\nrunnable=true\ndedicated_server=false\ncustom_features=""\nexport_filter="all_resources"\ninclude_filter=""\nexclude_filter=""\nexport_path="%s"\n\n[preset.0.options]\n\ngradle_build/use_gradle_build=false\npackage/unique_name="com.khayel.game"\npackage/name="Khayel"\npackage/signed=true\npackage/debug_build=true\narchitectures/arm64-v8a=true\narchitectures/armeabi-v7a=false\narchitectures/x86=false\narchitectures/x86_64=false\nkeystore/debug="%s"\nkeystore/debug_user="androiddebugkey"\nkeystore/debug_password="android"\nkeystore/release="%s"\nkeystore/release_user="androiddebugkey"\nkeystore/release_password="android"\n' \
-            "$APK_PATH" "$KEYSTORE_PATH" "$KEYSTORE_PATH" > khayel/export_presets.cfg
-
-          echo "====== export_presets.cfg ======"
-          cat khayel/export_presets.cfg
 
       - name: Setup Android Environment
         run: |
@@ -106,9 +96,10 @@ jobs:
 
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
+          KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi_keystore.jks"
           mkdir -p ~/.config/godot
-          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\nexport/android/debug_keystore = "/home/runner/khayel-debug.keystore"\nexport/android/debug_keystore_user = "androiddebugkey"\nexport/android/debug_keystore_pass = "android"\n' \
-            "$ANDROID_HOME" > ~/.config/godot/editor_settings-4.tres
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "lamoushi_key"\nexport/android/debug_keystore_pass = "24ay58s.s24er58"\n' \
+            "$ANDROID_HOME" "$KEYSTORE_PATH" > ~/.config/godot/editor_settings-4.tres
 
       - name: Force Reimport
         run: |
@@ -121,7 +112,7 @@ jobs:
           mkdir -p "$(dirname $APK_PATH)"
 
           xvfb-run ./godot --headless --path "khayel" \
-            --export-debug "Android" "$APK_PATH"
+            --export-release "Android" "$APK_PATH"
 
       - name: Verify APK Exists
         run: |
