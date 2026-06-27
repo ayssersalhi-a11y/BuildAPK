@@ -35,27 +35,22 @@ jobs:
       - name: Clean Old Configs & Cache
         run: |
           rm -f khayel/export_presets.cfg
-          rm -rf khayel/.godot/editor
-          rm -rf khayel/.godot/imported
-          rm -rf khayel/.godot/global_script_class_cache.cfg
+          rm -rf khayel/.godot
 
-      - name: Fix All Project Files
+      - name: Fix Project Files
         run: |
-          # === 1. GDExtension بدون linux ===
-          printf '[configuration]\nentry_symbol = "gdffmpeg_init"\ncompatibility_minimum = "4.1"\nreloadable = false\n\n[libraries]\nandroid.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"\nandroid.debug.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"\n' > khayel/addons/gdffmpeg/gdffmpeg.gdextension
-          chmod +x khayel/addons/gdffmpeg/bin/*.so
+          # === حذف GDExtension كلياً - هذا هو الحل الوحيد ===
+          rm -rf khayel/addons/gdffmpeg
 
-          # === 2. ETC2/ASTC ===
+          # === ETC2/ASTC ===
           if grep -q "import_etc2_astc" khayel/project.godot; then
-            sed -i 's/rendering\/textures\/vram_compression\/import_etc2_astc=false/rendering\/textures\/vram_compression\/import_etc2_astc=true/' khayel/project.godot
+            sed -i 's/import_etc2_astc=false/import_etc2_astc=true/' khayel/project.godot
           else
             printf '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n' >> khayel/project.godot
           fi
 
-          echo "====== gdffmpeg.gdextension ======"
-          cat khayel/addons/gdffmpeg/gdffmpeg.gdextension
-          echo "====== ETC2 line ======"
-          grep -i "etc2\|vram" khayel/project.godot || echo "NOT FOUND"
+          echo "✅ addons/gdffmpeg removed"
+          grep -i "etc2\|vram" khayel/project.godot || echo "ETC2 NOT FOUND"
 
       - name: Setup Godot Engine & Templates
         run: |
@@ -73,7 +68,7 @@ jobs:
       - name: Generate Debug Keystore
         run: |
           keytool -genkey -v \
-            -keystore khayel-debug.keystore \
+            -keystore /home/runner/khayel-debug.keystore \
             -alias androiddebugkey \
             -keyalg RSA \
             -keysize 2048 \
@@ -84,8 +79,13 @@ jobs:
 
       - name: Prepare Export Config
         run: |
-          KEYSTORE_PATH="$(pwd)/khayel-debug.keystore"
-          printf '[preset.0]\n\nname="Android"\nplatform="Android"\nrunnable=true\ndedicated_server=false\ncustom_features=""\nexport_filter="all_resources"\ninclude_filter=""\nexclude_filter=""\nexport_path="../../build/android/Khayel_Final.apk"\n\n[preset.0.options]\n\ngradle_build/use_gradle_build=false\npackage/unique_name="com.khayel.game"\npackage/name="Khayel"\npackage/signed=true\npackage/debug_build=true\narchitectures/arm64-v8a=true\narchitectures/armeabi-v7a=false\narchitectures/x86=false\narchitectures/x86_64=false\nkeystore/debug="%s"\nkeystore/debug_user="androiddebugkey"\nkeystore/debug_password="android"\nkeystore/release="%s"\nkeystore/release_user="androiddebugkey"\nkeystore/release_password="android"\n' "$KEYSTORE_PATH" "$KEYSTORE_PATH" > khayel/export_presets.cfg
+          # مسار مطلق للـ APK وللـ keystore
+          APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
+          KEYSTORE_PATH="/home/runner/khayel-debug.keystore"
+          mkdir -p "$(dirname $APK_PATH)"
+
+          printf '[preset.0]\n\nname="Android"\nplatform="Android"\nrunnable=true\ndedicated_server=false\ncustom_features=""\nexport_filter="all_resources"\ninclude_filter=""\nexclude_filter=""\nexport_path="%s"\n\n[preset.0.options]\n\ngradle_build/use_gradle_build=false\npackage/unique_name="com.khayel.game"\npackage/name="Khayel"\npackage/signed=true\npackage/debug_build=true\narchitectures/arm64-v8a=true\narchitectures/armeabi-v7a=false\narchitectures/x86=false\narchitectures/x86_64=false\nkeystore/debug="%s"\nkeystore/debug_user="androiddebugkey"\nkeystore/debug_password="android"\nkeystore/release="%s"\nkeystore/release_user="androiddebugkey"\nkeystore/release_password="android"\n' \
+            "$APK_PATH" "$KEYSTORE_PATH" "$KEYSTORE_PATH" > khayel/export_presets.cfg
 
           echo "====== export_presets.cfg ======"
           cat khayel/export_presets.cfg
@@ -105,30 +105,32 @@ jobs:
 
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
-          KEYSTORE_PATH="$(pwd)/khayel-debug.keystore"
           mkdir -p ~/.config/godot
-          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "androiddebugkey"\nexport/android/debug_keystore_pass = "android"\n' "$ANDROID_HOME" "$KEYSTORE_PATH" > ~/.config/godot/editor_settings-4.tres
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\nexport/android/debug_keystore = "/home/runner/khayel-debug.keystore"\nexport/android/debug_keystore_user = "androiddebugkey"\nexport/android/debug_keystore_pass = "android"\n' \
+            "$ANDROID_HOME" > ~/.config/godot/editor_settings-4.tres
 
-      - name: Force Reimport Assets
+      - name: Force Reimport
         run: |
-          # نشغل Godot مرة أولى فقط للـ import بدون تصدير
           xvfb-run ./godot --headless --path "khayel" --import || true
           echo "✅ Import done"
 
       - name: Build APK
         run: |
-          mkdir -p build/android
+          APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
+          mkdir -p "$(dirname $APK_PATH)"
+
           xvfb-run ./godot --headless --path "khayel" \
-            --export-debug "Android" "../../build/android/Khayel_Final.apk"
+            --export-debug "Android" "$APK_PATH"
 
       - name: Verify APK Exists
         run: |
-          if [ ! -f "build/android/Khayel_Final.apk" ]; then
-            echo "❌ APK not found! Build failed."
+          APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "❌ APK not found!"
             exit 1
           else
             echo "✅ APK built successfully!"
-            du -sh build/android/Khayel_Final.apk
+            du -sh "$APK_PATH"
           fi
 
       - name: Upload APK
