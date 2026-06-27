@@ -32,29 +32,30 @@ jobs:
           gdown "https://drive.google.com/file/d/1zGxsAXft1LwJgwarrnCe8fv3bMHbg03D/view?usp=drivesdk" -O khayel.zip
           unzip -qo khayel.zip -d .
 
-      - name: Clean Old Configs
+      - name: Clean Old Configs & Cache
         run: |
           rm -f khayel/export_presets.cfg
           rm -rf khayel/.godot/editor
+          rm -rf khayel/.godot/imported
+          rm -rf khayel/.godot/global_script_class_cache.cfg
 
       - name: Fix All Project Files
         run: |
-          # === 1. حذف GDExtension نهائياً من المشروع ===
+          # === 1. GDExtension بدون linux ===
           printf '[configuration]\nentry_symbol = "gdffmpeg_init"\ncompatibility_minimum = "4.1"\nreloadable = false\n\n[libraries]\nandroid.release.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"\nandroid.debug.arm64 = "res://addons/gdffmpeg/bin/libgdffmpeg.android.arm64.so"\n' > khayel/addons/gdffmpeg/gdffmpeg.gdextension
           chmod +x khayel/addons/gdffmpeg/bin/*.so
 
-          # === 2. تفعيل ETC2/ASTC في project.godot ===
+          # === 2. ETC2/ASTC ===
           if grep -q "import_etc2_astc" khayel/project.godot; then
             sed -i 's/rendering\/textures\/vram_compression\/import_etc2_astc=false/rendering\/textures\/vram_compression\/import_etc2_astc=true/' khayel/project.godot
           else
             printf '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n' >> khayel/project.godot
           fi
 
-          # === DEBUG: طباعة الملفات للتحقق ===
           echo "====== gdffmpeg.gdextension ======"
           cat khayel/addons/gdffmpeg/gdffmpeg.gdextension
-          echo "====== project.godot (ETC2 line) ======"
-          grep -i "etc2\|vram" khayel/project.godot || echo "NOT FOUND - مشكلة!"
+          echo "====== ETC2 line ======"
+          grep -i "etc2\|vram" khayel/project.godot || echo "NOT FOUND"
 
       - name: Setup Godot Engine & Templates
         run: |
@@ -107,6 +108,12 @@ jobs:
           KEYSTORE_PATH="$(pwd)/khayel-debug.keystore"
           mkdir -p ~/.config/godot
           printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "androiddebugkey"\nexport/android/debug_keystore_pass = "android"\n' "$ANDROID_HOME" "$KEYSTORE_PATH" > ~/.config/godot/editor_settings-4.tres
+
+      - name: Force Reimport Assets
+        run: |
+          # نشغل Godot مرة أولى فقط للـ import بدون تصدير
+          xvfb-run ./godot --headless --path "khayel" --import || true
+          echo "✅ Import done"
 
       - name: Build APK
         run: |
