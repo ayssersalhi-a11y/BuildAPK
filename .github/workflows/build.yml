@@ -107,14 +107,24 @@ jobs:
       - name: Install Android Build Template
         run: |
           mkdir -p khayel/android/build
-          cp -r "$HOME/.local/share/godot/export_templates/4.7.stable/android_source.zip" \
-            khayel/android/build/ || true
+          
+          # نسخ android_source.zip من الـ templates المحملة
+          cp "$HOME/.local/share/godot/export_templates/4.7.stable/android_source.zip" \
+            khayel/android/build/
+          
+          # استخراج محتوى الـ template
           cd khayel/android/build
-          unzip -qo android_source.zip || true
-          touch .build_version
-          echo "4.7.stable" > .build_version
-          echo "✅ Template installed manually"
-          ls khayel/android/build/ | head -10
+          unzip -qo android_source.zip
+          rm android_source.zip
+          
+          # كتابة ملف الإصدار بالضبط كما يتوقعه Godot
+          echo -n "4.7.stable" > .build_version
+          
+          echo "=== build_version ==="
+          cat .build_version
+          echo ""
+          echo "=== محتوى android/build ==="
+          ls khayel/android/build/ | head -20
       - name: Setup Android Environment
         run: |
           mkdir -p $ANDROID_HOME/cmdline-tools
