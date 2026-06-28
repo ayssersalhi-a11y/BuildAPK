@@ -85,7 +85,12 @@ jobs:
 
       - name: Install Android Build Template
         run: python3 scripts/install_template.py
-
+      
+      - name: Force Reimport Again
+        run: |
+          xvfb-run ./godot --headless --path "khayel" --import 2>&1 || true
+          echo "Second import done"
+      
       - name: Verify build_version
         run: |
           FILE="$(pwd)/khayel/android/build/.build_version"
