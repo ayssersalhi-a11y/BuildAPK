@@ -106,23 +106,8 @@ jobs:
           unzip -qo Godot_v4.7-stable_export_templates.tpz
           mv templates/* "$TEMPLATE_PATH/"
 
-      - name: Install Android Build Template
-        run: |
-          mkdir -p khayel/android/build
 
-          cp "$HOME/.local/share/godot/export_templates/4.7.stable/android_source.zip" \
-            khayel/android/build/
 
-          cd khayel/android/build
-          unzip -qo android_source.zip
-          rm android_source.zip
-
-          echo -n "4.7.stable" > .build_version
-
-          echo "=== build_version ==="
-          cat .build_version
-          echo "=== محتوى android/build ==="
-          ls | head -20
 
       - name: Setup Android Environment
         run: |
@@ -155,7 +140,25 @@ jobs:
         run: |
           xvfb-run ./godot --headless --path "khayel" --import || true
           echo "✅ Import done"
+          
+      - name: Install Android Build Template
+        run: |
+          mkdir -p khayel/android/build
 
+          cp "$HOME/.local/share/godot/export_templates/4.7.stable/android_source.zip" \
+            khayel/android/build/
+
+          cd khayel/android/build
+          unzip -qo android_source.zip
+          rm android_source.zip
+
+          echo -n "4.7.stable" > .build_version
+
+          echo "=== build_version ==="
+          cat .build_version
+          echo "=== محتوى android/build ==="
+          ls | head -20
+          
       - name: Build APK
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
