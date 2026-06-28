@@ -216,9 +216,22 @@ jobs:
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
           mkdir -p "$(dirname $APK_PATH)"
 
-          xvfb-run ./godot --headless --path "khayel" \
-            --export-release "Android" "$APK_PATH" 2>&1 | tee build_log.txt
+          # ابحث عن كل .build_version موجود
+          echo "=== كل ملفات .build_version ==="
+          find /home/runner -name ".build_version" -ls 2>/dev/null
 
+          # ابحث عن المسار الذي يتوقعه Godot من الكود المصدري
+          # Godot يبحث في: project_path/android/build/.build_version
+          echo "=== محتوى android/build ==="
+          ls -la "$(pwd)/khayel/android/build/" | head -20
+
+          # شغل Godot مع verbose أكثر
+          xvfb-run ./godot --headless --path "$(pwd)/khayel" \
+            --export-release "Android" "$APK_PATH" --verbose 2>&1 | tee build_log.txt
+
+          echo "=== السطور المتعلقة بـ build_version ==="
+          grep -i "build_version\|version info\|gradle\|template" build_log.txt || true
+          
       - name: Verify APK Exists
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
