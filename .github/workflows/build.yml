@@ -152,8 +152,10 @@ jobs:
           unzip -qo android_source.zip
           rm android_source.zip
 
-          # حذف project.godot الوهمي داخل الـ template
-          rm -f src/instrumented/assets/project.godot
+          # حذف كل ملفات project.godot داخل الـ template
+          find . -name "project.godot" -delete
+          echo "=== بحث عن project.godot بعد الحذف ==="
+          find . -name "project.godot" || echo "✅ لا يوجد project.godot"
 
           echo -n "4.7.stable" > .build_version
 
