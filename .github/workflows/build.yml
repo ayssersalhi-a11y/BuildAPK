@@ -88,24 +88,43 @@ jobs:
 
       - name: Install Android Build Template
         run: |
-          cd khayel
-          xvfb-run ../godot --headless --path "." \
-            --install-android-build-template 2>&1 || true
-          cd ..
+          TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
+          BUILD_DIR="$(pwd)/khayel/android/build"
+          mkdir -p "$BUILD_DIR"
+
+          # تثبيت يدوي مباشر بدون Godot لتجنب التجمد
+          cp "$TEMPLATE_PATH/android_source.zip" "$BUILD_DIR/"
+          cd "$BUILD_DIR"
+          unzip -qo android_source.zip
+          rm android_source.zip
+
+          # احذف أي project.godot داخل التيمبليت
+          find . -name "project.godot" -delete
+          echo "Deleted stray project.godot files"
+
+          # اكتب .build_version من version.txt الرسمي
+          VERSION=$(cat "$TEMPLATE_PATH/version.txt" 2>/dev/null || echo "4.7.stable.official")
+          printf "%s" "$VERSION" > .build_version
+          echo "build_version: $(cat .build_version)"
+
+          # ملف مطلوب من Godot
+          touch _was_built
+
+          cd -
 
           echo "=== build dir contents ==="
-          ls -la khayel/android/build/ 2>/dev/null || echo "NOT FOUND"
+          ls -la "$BUILD_DIR" | head -20
           echo "=== .build_version ==="
-          cat khayel/android/build/.build_version 2>/dev/null || echo "NOT FOUND"
+          cat "$BUILD_DIR/.build_version"
 
       - name: Check template version match
         run: |
           BUILD_VER=$(cat khayel/android/build/.build_version 2>/dev/null || echo "MISSING")
           TEMPLATE_VER=$(cat ~/.local/share/godot/export_templates/4.7.stable/version.txt 2>/dev/null || echo "NOT FOUND")
-          echo "build_version:  '$BUILD_VER'"
-          echo "template ver:   '$TEMPLATE_VER'"
+          echo "build_version : '$BUILD_VER'"
+          echo "template ver  : '$TEMPLATE_VER'"
           if [ "$BUILD_VER" = "MISSING" ]; then
-            echo "ERROR: .build_version not created - template install failed!"
+            echo "ERROR: .build_version not created!"
             exit 1
           fi
           if [ "$BUILD_VER" != "$TEMPLATE_VER" ]; then
@@ -121,14 +140,14 @@ jobs:
 
       - name: Diagnose
         run: |
-          echo "=== editor_settings android lines ==="
+          echo "=== editor_settings ==="
           grep android ~/.config/godot/editor_settings-4.7.tres || echo "NOT FOUND"
 
           echo "=== android/build contents ==="
-          ls -la khayel/android/build/
+          ls -la khayel/android/build/ | head -30
 
           echo "=== export_presets.cfg ==="
-          cat khayel/export_presets.cfg | grep -E "gradle|export_path|keystore" || echo "NOT FOUND"
+          grep -E "gradle|export_path|keystore|use_gradle" khayel/export_presets.cfg || echo "NOT FOUND"
 
       - name: Build APK
         run: |
