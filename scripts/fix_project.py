@@ -22,22 +22,19 @@ if os.path.exists(plugins_src):
 else:
     print("No addons/plugins folder")
 
-# === LamoushiAds ===
+# === export_presets.cfg ===
 cfg = "khayel/export_presets.cfg"
 with open(cfg, "r") as f:
     content = f.read()
 
+# === LamoushiAds ===
 if "plugins/LamoushiAds=true" in content:
     print("LamoushiAds already enabled")
 elif "plugins/LamoushiAds" in content:
     content = content.replace("plugins/LamoushiAds=false", "plugins/LamoushiAds=true")
-    with open(cfg, "w") as f:
-        f.write(content)
     print("LamoushiAds enabled")
 else:
     content = content.replace("[preset.0.options]", "[preset.0.options]\nplugins/LamoushiAds=true")
-    with open(cfg, "w") as f:
-        f.write(content)
     print("LamoushiAds added")
 
 # === ETC2/ASTC ===
@@ -64,14 +61,19 @@ keystore_path = cwd + "/khayel/script/lamoushi.keystore.jks"
 
 os.makedirs(os.path.dirname(apk_path), exist_ok=True)
 
+# إعادة قراءة المحتوى بعد تعديل LamoushiAds
 with open(cfg, "r") as f:
     content = f.read()
 
+# إصلاح export_path
 content = re.sub(r'export_path=.*', f'export_path="{apk_path}"', content)
+print("export_path:", apk_path)
+
+# إصلاح custom_template
 content = re.sub(r'custom_template/debug=.*', 'custom_template/debug=""', content)
 content = re.sub(r'custom_template/release=.*', 'custom_template/release=""', content)
 
-# الإصلاح الجوهري: تحديد مسار android/build
+# إصلاح gradle_build_directory
 content = re.sub(
     r'gradle_build/gradle_build_directory=.*',
     'gradle_build/gradle_build_directory="res://android/build"',
@@ -79,20 +81,50 @@ content = re.sub(
 )
 print("gradle_build_directory set to res://android/build")
 
-content += "\n"
-content += 'keystore/debug="' + keystore_path + '"\n'
-content += 'keystore/debug_user="lamoushi_key"\n'
-content += 'keystore/debug_password="24ay58s.s24er58"\n'
-content += 'keystore/release="' + keystore_path + '"\n'
-content += 'keystore/release_user="lamoushi_key"\n'
-content += 'keystore/release_password="24ay58s.s24er58"\n'
+# إصلاح use_gradle_build
+if "gradle_build/use_gradle_build=true" in content:
+    print("use_gradle_build already true")
+else:
+    content = re.sub(
+        r'gradle_build/use_gradle_build=.*',
+        'gradle_build/use_gradle_build=true',
+        content
+    )
+    print("use_gradle_build set to true")
+
+# إضافة keystore في المكان الصحيح داخل [preset.0.options]
+# أولاً احذف أي keystore قديم
+content = re.sub(r'keystore/debug=.*\n', '', content)
+content = re.sub(r'keystore/debug_user=.*\n', '', content)
+content = re.sub(r'keystore/debug_password=.*\n', '', content)
+content = re.sub(r'keystore/release=.*\n', '', content)
+content = re.sub(r'keystore/release_user=.*\n', '', content)
+content = re.sub(r'keystore/release_password=.*\n', '', content)
+
+# أضف keystore قبل نهاية الملف
+keystore_block = f"""keystore/debug="{keystore_path}"
+keystore/debug_user="lamoushi_key"
+keystore/debug_password="24ay58s.s24er58"
+keystore/release="{keystore_path}"
+keystore/release_user="lamoushi_key"
+keystore/release_password="24ay58s.s24er58"
+"""
+content = content.rstrip() + "\n" + keystore_block
 
 with open(cfg, "w") as f:
     f.write(content)
 
+# تحقق نهائي
+print("\n=== التحقق النهائي ===")
 print("export_path:", apk_path)
 print("keystore:", keystore_path)
 if os.path.exists(keystore_path):
-    print("Keystore found")
+    print("Keystore: FOUND ✓")
 else:
-    print("KEYSTORE NOT FOUND!")
+    print("Keystore: NOT FOUND ✗")
+
+# طباعة الأسطر المهمة من الملف
+with open(cfg, "r") as f:
+    for line in f:
+        if any(k in line for k in ["export_path", "gradle_build", "keystore", "use_gradle"]):
+            print(line.rstrip())
