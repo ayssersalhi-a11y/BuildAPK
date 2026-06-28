@@ -1,3 +1,4 @@
+# scripts/setup_android.py
 import os
 
 cwd = os.getcwd()
@@ -9,18 +10,17 @@ os.makedirs(config_dir, exist_ok=True)
 
 settings_path = config_dir + "/editor_settings-4.7.tres"
 
-content = '[gd_resource type="EditorSettings" format=3]\n'
-content += "\n"
-content += "[resource]\n"
-content += 'export/android/sdk_path = "' + android_home + '"\n'
-content += 'export/android/debug_keystore = "' + keystore_path + '"\n'
+content = '[gd_resource type="EditorSettings" format=3]\n\n[resource]\n'
+content += f'export/android/sdk_path = "{android_home}"\n'
+content += f'export/android/debug_keystore = "{keystore_path}"\n'
 content += 'export/android/debug_keystore_user = "lamoushi_key"\n'
 content += 'export/android/debug_keystore_pass = "24ay58s.s24er58"\n'
+# ← هذا السطر مهم جداً
+content += 'export/android/force_system_user = false\n'
+content += 'export/android/use_custom_build = true\n'
 
 with open(settings_path, "w") as f:
     f.write(content)
 
-print("android_home:", android_home)
-print("keystore:", keystore_path)
-print("settings written to:", settings_path)
+print("Settings written:")
 print(content)
