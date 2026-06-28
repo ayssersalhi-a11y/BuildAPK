@@ -185,28 +185,21 @@ jobs:
           BUILD_DIR="$(pwd)/khayel/android/build"
 
           mkdir -p "$BUILD_DIR"
-
           cp "$TEMPLATE_PATH/android_source.zip" "$BUILD_DIR/"
+          
           cd "$BUILD_DIR"
           unzip -qo android_source.zip
           rm android_source.zip
-
           find . -name "project.godot" -delete
 
-          # الإصلاح: Godot يقرأ .build_version من داخل android/build مباشرة
-          echo -n "4.7.stable" > "$BUILD_DIR/.build_version"
+          # الإصلاح: استخدم المسار النسبي مباشرة بعد cd
+          echo -n "4.7.stable" > .build_version
 
           echo "=== التحقق ==="
-          cat "$BUILD_DIR/.build_version"
+          cat .build_version
           echo ""
-          ls -la "$BUILD_DIR" | grep build_version
+          ls -la | grep build_version
           
-          # تأكد من صلاحيات القراءة
-          chmod 644 "$BUILD_DIR/.build_version"
-          
-          echo "=== هل يراه Godot؟ ==="
-          find "$(pwd)/khayel" -name ".build_version" -ls
-
       - name: Force Reimport
         run: |
           xvfb-run ./godot --headless --path "khayel" --import 2>&1 || true
