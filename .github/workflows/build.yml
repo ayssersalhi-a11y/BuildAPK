@@ -26,25 +26,6 @@ jobs:
             libvulkan1 libfontconfig1 liblzma5 liblzma-dev
           pip install --upgrade gdown
 
-          # بناء liblzma من المصدر وتثبيتها في /usr/local
-          wget -q https://github.com/tukaani-project/xz/releases/download/v5.4.6/xz-5.4.6.tar.gz
-          tar -xzf xz-5.4.6.tar.gz
-          cd xz-5.4.6
-          ./configure --prefix=/usr/local
-          make -j$(nproc)
-          sudo make install
-          sudo ldconfig /usr/local/lib
-          cd ..
-          rm -rf xz-5.4.6 xz-5.4.6.tar.gz
-
-          # إنشاء symlink للمكتبة بالاسم الذي تبحث عنه libgdffmpeg
-          sudo ln -sf /usr/local/lib/liblzma.so.5 /usr/lib/x86_64-linux-gnu/liblzma.so.5 || true
-          sudo ldconfig
-
-          echo "=== التحقق من lzma_stream_decoder ==="
-          nm -D /usr/local/lib/liblzma.so | grep lzma_stream_decoder || echo "غير موجود في /usr/local"
-          nm -D /usr/lib/x86_64-linux-gnu/liblzma.so.5 | grep lzma_stream_decoder || echo "غير موجود في /usr/lib"
-
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
@@ -56,45 +37,53 @@ jobs:
           rm -rf khayel/.godot
           rm -rf khayel/android/build
 
-      - name: Fix libgdffmpeg lzma dependency
+      - name: Disable gdffmpeg on Linux (not needed for Android build)
         run: |
-          LIB="khayel/addons/gdffmpeg/bin/libgdffmpeg.linux.x86_64.so"
-          chmod +x "$LIB"
+          # gdffmpeg تسبب crash على Linux لكنها غير مطلوبة لبناء APK
+          # نعطلها بتعديل ملف gdextension ليتجاهلها على Linux
+          GDEXT="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
+          
+          if [ -f "$GDEXT" ]; then
+            echo "=== محتوى gdffmpeg.gdextension قبل التعديل ==="
+            cat "$GDEXT"
+            
+            # إزالة سطر linux من ملف gdextension حتى لا يحاول Godot تحميله
+            # نبقي فقط android و windows
+            python3 << 'PYEOF'
+          import re
 
-          echo "=== المكتبات المطلوبة من libgdffmpeg ==="
-          ldd "$LIB" || true
-          echo "=== رموز lzma المطلوبة ==="
-          nm -D "$LIB" | grep -i lzma || echo "لا توجد رموز lzma"
+          path = "khayel/addons/gdffmpeg/gdffmpeg.gdextension"
+          with open(path, "r") as f:
+              content = f.read()
 
-          # تأكد أن liblzma متاحة في مسارات البحث
-          echo "/usr/local/lib" | sudo tee /etc/ld.so.conf.d/local.conf
-          sudo ldconfig
+          # احذف أي سطر يحتوي على linux
+          lines = content.splitlines()
+          filtered = [l for l in lines if "linux" not in l.lower()]
+          result = "\n".join(filtered) + "\n"
 
-          # إذا كانت المكتبة تبحث عن liblzma.so.5 تحديداً
-          LZMA_LIB=$(find /usr -name "liblzma.so*" 2>/dev/null | head -1)
-          echo "=== مسار liblzma الموجود: $LZMA_LIB ==="
+          with open(path, "w") as f:
+              f.write(result)
 
-          # إنشاء symlinks لضمان الوصول
-          sudo ln -sf "$LZMA_LIB" /usr/lib/liblzma.so.5 2>/dev/null || true
-          sudo ln -sf "$LZMA_LIB" /usr/lib/x86_64-linux-gnu/liblzma.so.5 2>/dev/null || true
-          sudo ldconfig
-
-          echo "=== التحقق النهائي ==="
-          ldconfig -p | grep lzma
+          print("=== بعد التعديل ===")
+          print(result)
+          PYEOF
+          else
+            echo "⚠️ ملف gdffmpeg.gdextension غير موجود"
+          fi
 
       - name: Fix Project Files
         run: |
-          # === نقل plugins من addons إلى android/plugins ===
+          # === نقل plugins ===
           if [ -d "khayel/addons/plugins" ]; then
             mkdir -p khayel/android/plugins
             cp -r khayel/addons/plugins/* khayel/android/plugins/
-            echo "✅ Plugins copied:"
+            echo "✅ Plugins copied"
             ls khayel/android/plugins/
           else
             echo "⚠️ لا يوجد مجلد addons/plugins"
           fi
 
-          # === تفعيل LamoushiAds في export_presets.cfg ===
+          # === تفعيل LamoushiAds ===
           if grep -q "plugins/LamoushiAds" khayel/export_presets.cfg; then
             sed -i 's|plugins/LamoushiAds=.*|plugins/LamoushiAds=true|' khayel/export_presets.cfg
           else
@@ -127,12 +116,10 @@ jobs:
           keystore/release_password="24ay58s.s24er58"
           EOF
 
-          echo "====== plugins line ======"
-          grep -i "plugin" khayel/export_presets.cfg || echo "لا يوجد"
-          echo "====== keystore lines ======"
-          grep -i "keystore" khayel/export_presets.cfg
           echo "====== export_path ======"
           grep "export_path" khayel/export_presets.cfg
+          echo "====== keystore ======"
+          grep -i "keystore" khayel/export_presets.cfg
           echo "====== Keystore exists? ======"
           ls -lh "$KEYSTORE_PATH" || echo "❌ KEYSTORE NOT FOUND!"
 
@@ -149,8 +136,8 @@ jobs:
           unzip -qo Godot_v4.7-stable_export_templates.tpz
           mv templates/* "$TEMPLATE_PATH/"
 
-          echo "=== محتوى مجلد export_templates ==="
-          ls "$TEMPLATE_PATH/" | head -20
+          echo "=== android_source.zip موجود؟ ==="
+          ls -lh "$TEMPLATE_PATH/android_source.zip" || echo "❌ غير موجود!"
 
       - name: Setup Android Environment
         run: |
@@ -176,47 +163,51 @@ jobs:
 
           KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi.keystore.jks"
           mkdir -p ~/.config/godot
-          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "lamoushi_key"\nexport/android/debug_keystore_pass = "24ay58s.s24er58"\n' \
-            "$ANDROID_HOME" "$KEYSTORE_PATH" > ~/.config/godot/editor_settings-4.tres
+          cat > ~/.config/godot/editor_settings-4.tres << EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/sdk_path = "$ANDROID_HOME"
+          export/android/debug_keystore = "$KEYSTORE_PATH"
+          export/android/debug_keystore_user = "lamoushi_key"
+          export/android/debug_keystore_pass = "24ay58s.s24er58"
+          EOF
 
       - name: Install Android Build Template
         run: |
-          # ========================================================
-          # الإصلاح الرئيسي: تثبيت android_source في المسار الصحيح
-          # ========================================================
           TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
-          
-          # تأكد أن android_source.zip موجود في templates
-          echo "=== محتوى export_templates ==="
-          ls "$TEMPLATE_PATH/" | grep android || echo "لا يوجد ملف android!"
+          BUILD_DIR="khayel/android/build"
 
-          mkdir -p khayel/android/build
+          mkdir -p "$BUILD_DIR"
 
-          cp "$TEMPLATE_PATH/android_source.zip" khayel/android/build/
-
-          cd khayel/android/build
+          # فك ضغط android_source.zip
+          cp "$TEMPLATE_PATH/android_source.zip" "$BUILD_DIR/"
+          cd "$BUILD_DIR"
           unzip -qo android_source.zip
           rm android_source.zip
 
-          # حذف أي project.godot داخل الـ template
+          # حذف project.godot داخل الـ template
           find . -name "project.godot" -delete
 
-          # ======================================================
-          # الإصلاح الجوهري: كتابة .build_version بشكل صحيح
-          # ======================================================
-          printf '4.7.stable' > .build_version
+          # =====================================================
+          # الإصلاح الجوهري لـ "no version info":
+          # Godot يقرأ هذا الملف للتحقق من التوافق
+          # يجب أن يكون بدون newline وبالضبط "4.7.stable"
+          # =====================================================
+          printf '%s' '4.7.stable' > .build_version
 
           echo "=== التحقق من .build_version ==="
-          cat .build_version
-          echo ""
-          xxd .build_version | head -3
+          echo "المحتوى: $(cat .build_version)"
+          echo "الحجم: $(wc -c < .build_version) bytes"
+          echo "Hex:"
+          xxd .build_version
 
-          echo "=== محتوى android/build ==="
-          ls -la | head -20
+          echo "=== هيكل android/build ==="
+          ls -la
 
       - name: Force Reimport
         run: |
-          xvfb-run ./godot --headless --path "khayel" --import || true
+          xvfb-run ./godot --headless --path "khayel" --import 2>&1 || true
           echo "✅ Import done"
 
       - name: Build APK
@@ -224,24 +215,16 @@ jobs:
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
           mkdir -p "$(dirname $APK_PATH)"
 
-          # تصدير مع preload المكتبة liblzma
-          LD_PRELOAD=/usr/local/lib/liblzma.so.5 xvfb-run ./godot --headless --path "khayel" \
+          xvfb-run ./godot --headless --path "khayel" \
             --export-release "Android" "$APK_PATH" 2>&1 | tee build_log.txt
-
-          # إذا فشل الـ preload جرب بدونه
-          if [ ! -f "$APK_PATH" ]; then
-            echo "⚠️ المحاولة الأولى فشلت، جرب بدون LD_PRELOAD..."
-            xvfb-run ./godot --headless --path "khayel" \
-              --export-release "Android" "$APK_PATH" 2>&1 | tee -a build_log.txt
-          fi
 
       - name: Verify APK Exists
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
           if [ ! -f "$APK_PATH" ]; then
             echo "❌ APK not found!"
-            echo "=== آخر 50 سطر من build_log ==="
-            tail -50 build_log.txt || true
+            echo "=== build_log كامل ==="
+            cat build_log.txt
             exit 1
           else
             echo "✅ APK built successfully!"
