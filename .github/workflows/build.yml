@@ -85,8 +85,18 @@ jobs:
 
       - name: Install Android Build Template
         run: python3 scripts/install_template.py
-      
-      
+      - name: Check template version match
+        run: |
+          BUILD_VER=$(cat khayel/android/build/.build_version)
+          TEMPLATE_VER=$(cat ~/.local/share/godot/export_templates/4.7.stable/version.txt 2>/dev/null || echo "NOT FOUND")
+          echo "build_version:  '$BUILD_VER'"
+          echo "template ver:   '$TEMPLATE_VER'"
+          if [ "$BUILD_VER" != "$TEMPLATE_VER" ]; then
+            echo "MISMATCH! هذا سيسبب فشل البناء"
+            exit 1
+          fi
+          echo "OK - الإصداران متطابقان"
+             
       - name: Verify build_version
         run: |
           FILE="$(pwd)/khayel/android/build/.build_version"
