@@ -40,36 +40,24 @@ jobs:
       - name: Disable gdffmpeg on Linux
         run: |
           GDEXT="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
-          
           if [ -f "$GDEXT" ]; then
             echo "=== قبل ==="
             cat "$GDEXT"
-            
-            # أضف linux.x86_64 وهمي لمنع الخطأ، ويشير لملف غير موجود
-            # Godot سيتجاهله بدل أن يتوقف
             python3 << 'PYEOF'
-          import configparser, os
-
           path = "khayel/addons/gdffmpeg/gdffmpeg.gdextension"
           with open(path, "r") as f:
               content = f.read()
-
-          # اجعل linux يشير لمكتبة وهمية غير موجودة
-          # هذا يمنع الخطأ Fatal ويسمح للمحرر بالمتابعة
           lines = content.splitlines()
           new_lines = []
           for line in lines:
               if "linux" in line.lower() and "=" in line:
-                  # استبدل المسار بمسار وهمي
                   key = line.split("=")[0].strip()
                   new_lines.append(f'{key} = ""')
               else:
                   new_lines.append(line)
-          
           result = "\n".join(new_lines) + "\n"
           with open(path, "w") as f:
               f.write(result)
-
           print("=== بعد ===")
           print(result)
           PYEOF
@@ -114,13 +102,13 @@ jobs:
 
           cat >> khayel/export_presets.cfg << EOF
 
-          keystore/debug="$KEYSTORE_PATH"
-          keystore/debug_user="lamoushi_key"
-          keystore/debug_password="24ay58s.s24er58"
-          keystore/release="$KEYSTORE_PATH"
-          keystore/release_user="lamoushi_key"
-          keystore/release_password="24ay58s.s24er58"
-          EOF
+keystore/debug="$KEYSTORE_PATH"
+keystore/debug_user="lamoushi_key"
+keystore/debug_password="24ay58s.s24er58"
+keystore/release="$KEYSTORE_PATH"
+keystore/release_user="lamoushi_key"
+keystore/release_password="24ay58s.s24er58"
+EOF
 
           echo "====== export_path ======"
           grep "export_path" khayel/export_presets.cfg
@@ -169,15 +157,20 @@ jobs:
 
           KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi.keystore.jks"
           mkdir -p ~/.config/godot
-          cat > ~/.config/godot/editor_settings-4.tres << EOF
-          [gd_resource type="EditorSettings" format=3]
 
-          [resource]
-          export/android/sdk_path = "$ANDROID_HOME"
-          export/android/debug_keystore = "$KEYSTORE_PATH"
-          export/android/debug_keystore_user = "lamoushi_key"
-          export/android/debug_keystore_pass = "24ay58s.s24er58"
-          EOF
+          # الإصلاح: اسم الملف يجب أن يكون editor_settings-4.7.tres
+          cat > ~/.config/godot/editor_settings-4.7.tres << EOF
+[gd_resource type="EditorSettings" format=3]
+
+[resource]
+export/android/sdk_path = "$ANDROID_HOME"
+export/android/debug_keystore = "$KEYSTORE_PATH"
+export/android/debug_keystore_user = "lamoushi_key"
+export/android/debug_keystore_pass = "24ay58s.s24er58"
+EOF
+
+          echo "=== editor_settings موجود؟ ==="
+          ls -lh ~/.config/godot/
 
       - name: Install Android Build Template
         run: |
@@ -186,20 +179,20 @@ jobs:
 
           mkdir -p "$BUILD_DIR"
           cp "$TEMPLATE_PATH/android_source.zip" "$BUILD_DIR/"
-          
+
           cd "$BUILD_DIR"
           unzip -qo android_source.zip
           rm android_source.zip
           find . -name "project.godot" -delete
 
-          # الإصلاح: استخدم المسار النسبي مباشرة بعد cd
-          echo -n "4.7.stable" > .build_version
+          # الإصلاح: python3 يكتب بدون newline مضمون 100%
+          python3 -c "open('.build_version','w').write('4.7.stable')"
 
           echo "=== التحقق ==="
           cat .build_version
-          echo ""
+          wc -c .build_version
           ls -la | grep build_version
-          
+
       - name: Force Reimport
         run: |
           xvfb-run ./godot --headless --path "khayel" --import 2>&1 || true
@@ -210,28 +203,17 @@ jobs:
           FILE="$(pwd)/khayel/android/build/.build_version"
           echo "الملف موجود؟ $(ls -la $FILE 2>/dev/null || echo ❌ غير موجود)"
           echo "المحتوى: $(cat $FILE 2>/dev/null || echo فارغ)"
-      
+          echo "الحجم بالـ bytes:"
+          wc -c "$FILE" 2>/dev/null || echo "لا يمكن قراءته"
+
       - name: Build APK
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
           mkdir -p "$(dirname $APK_PATH)"
 
-          # ابحث عن كل .build_version موجود
-          echo "=== كل ملفات .build_version ==="
-          find /home/runner -name ".build_version" -ls 2>/dev/null
-
-          # ابحث عن المسار الذي يتوقعه Godot من الكود المصدري
-          # Godot يبحث في: project_path/android/build/.build_version
-          echo "=== محتوى android/build ==="
-          ls -la "$(pwd)/khayel/android/build/" | head -20
-
-          # شغل Godot مع verbose أكثر
           xvfb-run ./godot --headless --path "$(pwd)/khayel" \
-            --export-release "Android" "$APK_PATH" --verbose 2>&1 | tee build_log.txt
+            --export-release "Android" "$APK_PATH" 2>&1 | tee build_log.txt
 
-          echo "=== السطور المتعلقة بـ build_version ==="
-          grep -i "build_version\|version info\|gradle\|template" build_log.txt || true
-          
       - name: Verify APK Exists
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
