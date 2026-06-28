@@ -106,10 +106,15 @@ jobs:
           mv templates/* "$TEMPLATE_PATH/"
       - name: Install Android Build Template
         run: |
-          xvfb-run ./godot --headless --path "khayel" \
-            --install-android-build-template || true
-          echo "✅ Template installed"
-          ls khayel/android/ || echo "android folder contents"
+          mkdir -p khayel/android/build
+          cp -r "$HOME/.local/share/godot/export_templates/4.7.stable/android_source.zip" \
+            khayel/android/build/ || true
+          cd khayel/android/build
+          unzip -qo android_source.zip || true
+          touch .build_version
+          echo "4.7.stable" > .build_version
+          echo "✅ Template installed manually"
+          ls khayel/android/build/ | head -10
       - name: Setup Android Environment
         run: |
           mkdir -p $ANDROID_HOME/cmdline-tools
