@@ -26,6 +26,19 @@ jobs:
             libvulkan1 libfontconfig1 liblzma5 liblzma-dev
           pip install --upgrade gdown
 
+          # تثبيت liblzma من المصدر لحل مشكلة lzma_stream_decoder
+          wget -q https://github.com/tukaani-project/xz/releases/download/v5.4.6/xz-5.4.6.tar.gz
+          tar -xzf xz-5.4.6.tar.gz
+          cd xz-5.4.6
+          ./configure --prefix=/usr
+          make -j$(nproc)
+          sudo make install
+          sudo ldconfig
+          cd ..
+          rm -rf xz-5.4.6 xz-5.4.6.tar.gz
+
+          echo "=== إصدار liblzma ==="
+          ldconfig -p | grep lzma
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
