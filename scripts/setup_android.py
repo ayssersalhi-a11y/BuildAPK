@@ -1,8 +1,7 @@
 import os
-import subprocess
 
 cwd = os.getcwd()
-android_home = os.environ.get("ANDROID_HOME", "/home/runner/android-sdk")
+android_home = "/home/runner/android-sdk"
 keystore_path = cwd + "/khayel/script/lamoushi.keystore.jks"
 
 config_dir = os.path.expanduser("~/.config/godot")
@@ -21,5 +20,7 @@ content += 'export/android/debug_keystore_pass = "24ay58s.s24er58"\n'
 with open(settings_path, "w") as f:
     f.write(content)
 
-print("editor_settings written:")
+print("android_home:", android_home)
+print("keystore:", keystore_path)
+print("settings written to:", settings_path)
 print(content)
