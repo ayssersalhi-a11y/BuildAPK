@@ -29,7 +29,7 @@ jobs:
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
-          gdown "https://drive.google.com/file/d/1azjiRUf9-meIVEwAS6cX25jIL-EQCQkY/view?usp=drivesdk" -O khayel.zip
+          gdown "https://drive.google.com/file/d/1De6AfzdTZe6pKdq2S9qYEXljcubCRtox/view?usp=drivesdk" -O khayel.zip
           unzip -qo khayel.zip -d .
 
       - name: Clean Old Cache
@@ -39,6 +39,23 @@ jobs:
       - name: Fix Project Files
         run: |
           chmod +x khayel/addons/gdffmpeg/bin/*.so
+
+          # === نقل plugins من addons إلى android/plugins ===
+          if [ -d "khayel/addons/plugins" ]; then
+            mkdir -p khayel/android/plugins
+            cp -r khayel/addons/plugins/* khayel/android/plugins/
+            echo "✅ Plugins copied:"
+            ls khayel/android/plugins/
+          else
+            echo "⚠️ لا يوجد مجلد addons/plugins"
+          fi
+
+          # === تفعيل LamoushiAds في export_presets.cfg ===
+          if grep -q "plugins/LamoushiAds" khayel/export_presets.cfg; then
+            sed -i 's|plugins/LamoushiAds=.*|plugins/LamoushiAds=true|' khayel/export_presets.cfg
+          else
+            sed -i '/\[preset\.0\.options\]/a plugins/LamoushiAds=true' khayel/export_presets.cfg
+          fi
 
           # === ETC2/ASTC ===
           if grep -q "import_etc2_astc" khayel/project.godot; then
@@ -52,12 +69,10 @@ jobs:
           KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi.keystore.jks"
           mkdir -p "$(dirname $APK_PATH)"
 
-          # تصحيح المسارات الموجودة
           sed -i 's|export_path=.*|export_path="'"$APK_PATH"'"|' khayel/export_presets.cfg
           sed -i 's|custom_template/debug=.*|custom_template/debug=""|' khayel/export_presets.cfg
           sed -i 's|custom_template/release=.*|custom_template/release=""|' khayel/export_presets.cfg
 
-          # إضافة سطور الـ keystore لأنها غير موجودة في الملف
           cat >> khayel/export_presets.cfg << EOF
 
           keystore/debug="$KEYSTORE_PATH"
@@ -68,6 +83,8 @@ jobs:
           keystore/release_password="24ay58s.s24er58"
           EOF
 
+          echo "====== plugins line ======"
+          grep -i "plugin" khayel/export_presets.cfg || echo "لا يوجد"
           echo "====== keystore lines ======"
           grep -i "keystore" khayel/export_presets.cfg
           echo "====== export_path ======"
