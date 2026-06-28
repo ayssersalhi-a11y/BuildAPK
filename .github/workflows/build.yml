@@ -72,7 +72,16 @@ jobs:
           FILE="$(pwd)/khayel/android/build/.build_version"
           cat "$FILE"
           wc -c "$FILE"
+      - name: Diagnose
+        run: |
+          echo "=== SDK structure ==="
+          find /home/runner/android-sdk -maxdepth 3 -type d
 
+          echo "=== gdffmpeg after patch ==="
+          cat khayel/addons/gdffmpeg/gdffmpeg.gdextension
+
+          echo "=== editor_settings ==="
+          cat ~/.config/godot/editor_settings-4.7.tres
       - name: Build APK
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
