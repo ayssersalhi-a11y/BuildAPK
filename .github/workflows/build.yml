@@ -37,38 +37,44 @@ jobs:
           rm -rf khayel/.godot
           rm -rf khayel/android/build
 
-      - name: Disable gdffmpeg on Linux (not needed for Android build)
+      - name: Disable gdffmpeg on Linux
         run: |
-          # gdffmpeg تسبب crash على Linux لكنها غير مطلوبة لبناء APK
-          # نعطلها بتعديل ملف gdextension ليتجاهلها على Linux
           GDEXT="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
           
           if [ -f "$GDEXT" ]; then
-            echo "=== محتوى gdffmpeg.gdextension قبل التعديل ==="
+            echo "=== قبل ==="
             cat "$GDEXT"
             
-            # إزالة سطر linux من ملف gdextension حتى لا يحاول Godot تحميله
-            # نبقي فقط android و windows
+            # أضف linux.x86_64 وهمي لمنع الخطأ، ويشير لملف غير موجود
+            # Godot سيتجاهله بدل أن يتوقف
             python3 << 'PYEOF'
-          import re
+          import configparser, os
 
           path = "khayel/addons/gdffmpeg/gdffmpeg.gdextension"
           with open(path, "r") as f:
               content = f.read()
 
-          # احذف أي سطر يحتوي على linux
+          # اجعل linux يشير لمكتبة وهمية غير موجودة
+          # هذا يمنع الخطأ Fatal ويسمح للمحرر بالمتابعة
           lines = content.splitlines()
-          filtered = [l for l in lines if "linux" not in l.lower()]
-          result = "\n".join(filtered) + "\n"
-
+          new_lines = []
+          for line in lines:
+              if "linux" in line.lower() and "=" in line:
+                  # استبدل المسار بمسار وهمي
+                  key = line.split("=")[0].strip()
+                  new_lines.append(f'{key} = ""')
+              else:
+                  new_lines.append(line)
+          
+          result = "\n".join(new_lines) + "\n"
           with open(path, "w") as f:
               f.write(result)
 
-          print("=== بعد التعديل ===")
+          print("=== بعد ===")
           print(result)
           PYEOF
           else
-            echo "⚠️ ملف gdffmpeg.gdextension غير موجود"
+            echo "⚠️ gdffmpeg.gdextension غير موجود"
           fi
 
       - name: Fix Project Files
@@ -176,40 +182,42 @@ jobs:
       - name: Install Android Build Template
         run: |
           TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
-          BUILD_DIR="khayel/android/build"
+          BUILD_DIR="$(pwd)/khayel/android/build"
 
           mkdir -p "$BUILD_DIR"
 
-          # فك ضغط android_source.zip
           cp "$TEMPLATE_PATH/android_source.zip" "$BUILD_DIR/"
           cd "$BUILD_DIR"
           unzip -qo android_source.zip
           rm android_source.zip
 
-          # حذف project.godot داخل الـ template
           find . -name "project.godot" -delete
 
-          # =====================================================
-          # الإصلاح الجوهري لـ "no version info":
-          # Godot يقرأ هذا الملف للتحقق من التوافق
-          # يجب أن يكون بدون newline وبالضبط "4.7.stable"
-          # =====================================================
-          printf '%s' '4.7.stable' > .build_version
+          # الإصلاح: Godot يقرأ .build_version من داخل android/build مباشرة
+          echo -n "4.7.stable" > "$BUILD_DIR/.build_version"
 
-          echo "=== التحقق من .build_version ==="
-          echo "المحتوى: $(cat .build_version)"
-          echo "الحجم: $(wc -c < .build_version) bytes"
-          echo "Hex:"
-          xxd .build_version
-
-          echo "=== هيكل android/build ==="
-          ls -la
+          echo "=== التحقق ==="
+          cat "$BUILD_DIR/.build_version"
+          echo ""
+          ls -la "$BUILD_DIR" | grep build_version
+          
+          # تأكد من صلاحيات القراءة
+          chmod 644 "$BUILD_DIR/.build_version"
+          
+          echo "=== هل يراه Godot؟ ==="
+          find "$(pwd)/khayel" -name ".build_version" -ls
 
       - name: Force Reimport
         run: |
           xvfb-run ./godot --headless --path "khayel" --import 2>&1 || true
           echo "✅ Import done"
 
+      - name: Verify build_version
+        run: |
+          FILE="$(pwd)/khayel/android/build/.build_version"
+          echo "الملف موجود؟ $(ls -la $FILE 2>/dev/null || echo ❌ غير موجود)"
+          echo "المحتوى: $(cat $FILE 2>/dev/null || echo فارغ)"
+      
       - name: Build APK
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
