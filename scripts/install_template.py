@@ -49,3 +49,14 @@ with open(".build_version", "r") as f:
     content = f.read()
 print("build_version:", repr(content))
 print("size:", os.path.getsize(".build_version"), "bytes")
+
+# أخبر Godot أن android template مثبت
+godot_dir = cwd + "/khayel/.godot"
+os.makedirs(godot_dir, exist_ok=True)
+
+android_cfg = godot_dir + "/android_build_version.cfg"
+with open(android_cfg, "w") as f:
+    f.write(version)
+
+print("Godot android config written:", android_cfg)
+print("content:", version)
