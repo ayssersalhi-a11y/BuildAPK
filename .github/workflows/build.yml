@@ -84,7 +84,18 @@ jobs:
           echo "Import done"
 
       - name: Install Android Build Template
-        run: python3 scripts/install_template.py
+        run: |
+            cd khayel
+            xvfb-run ../godot --headless --path "." \
+             --install-android-build-template 2>&1 || true
+            cd ..
+    
+                  # تحقق
+            echo "=== build dir contents ==="
+            ls -la khayel/android/build/ 2>/dev/null || echo "NOT FOUND"
+            echo "=== .build_version ==="
+            cat khayel/android/build/.build_version 2>/dev/null || echo "NOT FOUND"
+     
       - name: Check template version match
         run: |
           BUILD_VER=$(cat khayel/android/build/.build_version)
@@ -131,7 +142,7 @@ jobs:
 
           cd khayel
           xvfb-run ../godot --headless --path "." \
-            --export-release "Android" "$APK_PATH" 2>&1 | tee ../build_log.txt
+          --export-release "Android" "$APK_PATH" 2>&1 | tee ../build_log.txt
           cd ..
 
         
