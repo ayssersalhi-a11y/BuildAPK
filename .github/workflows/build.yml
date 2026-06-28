@@ -29,7 +29,7 @@ jobs:
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
-          gdown "https://drive.google.com/file/d/1azjiRUf9-meIVEwAS6cX25jIL-EQCQkY/view?usp=drivesdk" -O khayel.zip
+          gdown "https://drive.google.com/file/d/1zGxsAXft1LwJgwarrnCe8fv3bMHbg03D/view?usp=drivesdk" -O khayel.zip
           unzip -qo khayel.zip -d .
 
       - name: Clean Old Cache
@@ -40,30 +40,29 @@ jobs:
         run: |
           chmod +x khayel/addons/gdffmpeg/bin/*.so
 
+          # === DEBUG: بحث عن الـ keystore ===
+          echo "=== محتوى مجلد khayel ==="
+          ls khayel/
+          echo "=== بحث عن jks ==="
+          find khayel -name "*.jks" 2>/dev/null || echo "لا يوجد jks"
+          echo "=== بحث عن keystore ==="
+          find khayel -name "*.keystore" 2>/dev/null || echo "لا يوجد keystore"
+          echo "=== سطور keystore في export_presets.cfg ==="
+          grep -i "keystore" khayel/export_presets.cfg || echo "لا يوجد keystore في الملف"
+
+          # === ETC2/ASTC ===
           if grep -q "import_etc2_astc" khayel/project.godot; then
             sed -i 's/import_etc2_astc=false/import_etc2_astc=true/' khayel/project.godot
           else
             printf '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n' >> khayel/project.godot
           fi
 
+          # === export_presets.cfg ===
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
-          KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi_keystore.jks"
           mkdir -p "$(dirname $APK_PATH)"
-
           sed -i 's|export_path=.*|export_path="'"$APK_PATH"'"|' khayel/export_presets.cfg
           sed -i 's|custom_template/debug=.*|custom_template/debug=""|' khayel/export_presets.cfg
           sed -i 's|custom_template/release=.*|custom_template/release=""|' khayel/export_presets.cfg
-          sed -i 's|keystore/debug=.*|keystore/debug="'"$KEYSTORE_PATH"'"|' khayel/export_presets.cfg
-          sed -i 's|keystore/debug_password=.*|keystore/debug_password="24ay58s.s24er58"|' khayel/export_presets.cfg
-          sed -i 's|keystore/debug_user=.*|keystore/debug_user="lamoushi_key"|' khayel/export_presets.cfg
-          sed -i 's|keystore/release=.*|keystore/release="'"$KEYSTORE_PATH"'"|' khayel/export_presets.cfg
-          sed -i 's|keystore/release_password=.*|keystore/release_password="24ay58s.s24er58"|' khayel/export_presets.cfg
-          sed -i 's|keystore/release_user=.*|keystore/release_user="lamoushi_key"|' khayel/export_presets.cfg
-
-          echo "====== export_path & keystore & template ======"
-          grep -E "export_path|keystore|custom_template" khayel/export_presets.cfg
-          echo "====== Keystore exists? ======"
-          ls -lh "$KEYSTORE_PATH" || echo "❌ KEYSTORE NOT FOUND!"
 
       - name: Setup Godot Engine & Templates
         run: |
@@ -85,13 +84,11 @@ jobs:
           unzip -q tools.zip -d $ANDROID_HOME/cmdline-tools
           mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
 
-          # تثبيت platform-tools و build-tools فقط أولاً
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             --sdk_root=$ANDROID_HOME \
             "platform-tools" \
             "build-tools;34.0.0"
 
-          # تثبيت platform بشكل منفصل مع retry
           for i in 1 2 3; do
             echo "Attempt $i: Installing platforms;android-34"
             yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
@@ -102,10 +99,9 @@ jobs:
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             --sdk_root=$ANDROID_HOME --licenses
 
-          KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi_keystore.jks"
           mkdir -p ~/.config/godot
-          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "lamoushi_key"\nexport/android/debug_keystore_pass = "24ay58s.s24er58"\n' \
-            "$ANDROID_HOME" "$KEYSTORE_PATH" > ~/.config/godot/editor_settings-4.tres
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\n' \
+            "$ANDROID_HOME" > ~/.config/godot/editor_settings-4.tres
 
       - name: Force Reimport
         run: |
