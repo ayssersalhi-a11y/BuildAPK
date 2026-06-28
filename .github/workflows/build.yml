@@ -29,7 +29,7 @@ jobs:
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
-          gdown "https://drive.google.com/file/d/1azjiRUf9-meIVEwAS6cX25jIL-EQCQkY/view?usp=drivesdk" -O khayel.zip
+          gdown "https://drive.google.com/file/d/1zGxsAXft1LwJgwarrnCe8fv3bMHbg03D/view?usp=drivesdk" -O khayel.zip
           unzip -qo khayel.zip -d .
 
       - name: Clean Old Cache
@@ -40,16 +40,6 @@ jobs:
         run: |
           chmod +x khayel/addons/gdffmpeg/bin/*.so
 
-          # === DEBUG: بحث عن الـ keystore ===
-          echo "=== محتوى مجلد khayel ==="
-          ls khayel/
-          echo "=== بحث عن jks ==="
-          find khayel -name "*.jks" 2>/dev/null || echo "لا يوجد jks"
-          echo "=== بحث عن keystore ==="
-          find khayel -name "*.keystore" 2>/dev/null || echo "لا يوجد keystore"
-          echo "=== سطور keystore في export_presets.cfg ==="
-          grep -i "keystore" khayel/export_presets.cfg || echo "لا يوجد keystore في الملف"
-
           # === ETC2/ASTC ===
           if grep -q "import_etc2_astc" khayel/project.godot; then
             sed -i 's/import_etc2_astc=false/import_etc2_astc=true/' khayel/project.godot
@@ -59,10 +49,31 @@ jobs:
 
           # === export_presets.cfg ===
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
+          KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi.keystore.jks"
           mkdir -p "$(dirname $APK_PATH)"
+
+          # تصحيح المسارات الموجودة
           sed -i 's|export_path=.*|export_path="'"$APK_PATH"'"|' khayel/export_presets.cfg
           sed -i 's|custom_template/debug=.*|custom_template/debug=""|' khayel/export_presets.cfg
           sed -i 's|custom_template/release=.*|custom_template/release=""|' khayel/export_presets.cfg
+
+          # إضافة سطور الـ keystore لأنها غير موجودة في الملف
+          cat >> khayel/export_presets.cfg << EOF
+
+          keystore/debug="$KEYSTORE_PATH"
+          keystore/debug_user="lamoushi_key"
+          keystore/debug_password="24ay58s.s24er58"
+          keystore/release="$KEYSTORE_PATH"
+          keystore/release_user="lamoushi_key"
+          keystore/release_password="24ay58s.s24er58"
+          EOF
+
+          echo "====== keystore lines ======"
+          grep -i "keystore" khayel/export_presets.cfg
+          echo "====== export_path ======"
+          grep "export_path" khayel/export_presets.cfg
+          echo "====== Keystore exists? ======"
+          ls -lh "$KEYSTORE_PATH" || echo "❌ KEYSTORE NOT FOUND!"
 
       - name: Setup Godot Engine & Templates
         run: |
@@ -99,9 +110,10 @@ jobs:
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             --sdk_root=$ANDROID_HOME --licenses
 
+          KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi.keystore.jks"
           mkdir -p ~/.config/godot
-          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\n' \
-            "$ANDROID_HOME" > ~/.config/godot/editor_settings-4.tres
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "lamoushi_key"\nexport/android/debug_keystore_pass = "24ay58s.s24er58"\n' \
+            "$ANDROID_HOME" "$KEYSTORE_PATH" > ~/.config/godot/editor_settings-4.tres
 
       - name: Force Reimport
         run: |
