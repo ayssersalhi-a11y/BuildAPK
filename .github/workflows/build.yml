@@ -29,7 +29,7 @@ jobs:
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
-          gdown "https://drive.google.com/file/d/1zGxsAXft1LwJgwarrnCe8fv3bMHbg03D/view?usp=drivesdk" -O khayel.zip
+          gdown "https://drive.google.com/file/d/1azjiRUf9-meIVEwAS6cX25jIL-EQCQkY/view?usp=drivesdk" -O khayel.zip
           unzip -qo khayel.zip -d .
 
       - name: Clean Old Cache
@@ -38,29 +38,21 @@ jobs:
 
       - name: Fix Project Files
         run: |
-          # === 1. gdffmpeg: chmod فقط ===
           chmod +x khayel/addons/gdffmpeg/bin/*.so
 
-          # === 2. project.godot: ETC2/ASTC ===
           if grep -q "import_etc2_astc" khayel/project.godot; then
             sed -i 's/import_etc2_astc=false/import_etc2_astc=true/' khayel/project.godot
           else
             printf '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n' >> khayel/project.godot
           fi
 
-          # === 3. export_presets.cfg: تصحيح المسارات ===
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
           KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi_keystore.jks"
           mkdir -p "$(dirname $APK_PATH)"
 
-          # تصحيح مسار APK
           sed -i 's|export_path=.*|export_path="'"$APK_PATH"'"|' khayel/export_presets.cfg
-
-          # حذف custom_template القديم (سبب مشكلة 4.6.2)
           sed -i 's|custom_template/debug=.*|custom_template/debug=""|' khayel/export_presets.cfg
           sed -i 's|custom_template/release=.*|custom_template/release=""|' khayel/export_presets.cfg
-
-          # تصحيح الـ keystore
           sed -i 's|keystore/debug=.*|keystore/debug="'"$KEYSTORE_PATH"'"|' khayel/export_presets.cfg
           sed -i 's|keystore/debug_password=.*|keystore/debug_password="24ay58s.s24er58"|' khayel/export_presets.cfg
           sed -i 's|keystore/debug_user=.*|keystore/debug_user="lamoushi_key"|' khayel/export_presets.cfg
@@ -70,8 +62,6 @@ jobs:
 
           echo "====== export_path & keystore & template ======"
           grep -E "export_path|keystore|custom_template" khayel/export_presets.cfg
-          echo "====== ETC2 ======"
-          grep -i "etc2\|vram" khayel/project.godot || echo "NOT FOUND"
           echo "====== Keystore exists? ======"
           ls -lh "$KEYSTORE_PATH" || echo "❌ KEYSTORE NOT FOUND!"
 
@@ -95,13 +85,22 @@ jobs:
           unzip -q tools.zip -d $ANDROID_HOME/cmdline-tools
           mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
 
+          # تثبيت platform-tools و build-tools فقط أولاً
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             --sdk_root=$ANDROID_HOME \
             "platform-tools" \
-            "build-tools;34.0.0" \
-            "platforms;android-34"
+            "build-tools;34.0.0"
 
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+          # تثبيت platform بشكل منفصل مع retry
+          for i in 1 2 3; do
+            echo "Attempt $i: Installing platforms;android-34"
+            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+              --sdk_root=$ANDROID_HOME \
+              "platforms;android-34" && break || sleep 5
+          done
+
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            --sdk_root=$ANDROID_HOME --licenses
 
           KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi_keystore.jks"
           mkdir -p ~/.config/godot
