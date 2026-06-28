@@ -1,3 +1,4 @@
+# scripts/fix_gdffmpeg.py
 import os
 
 path = "khayel/addons/gdffmpeg/gdffmpeg.gdextension"
@@ -7,24 +8,25 @@ if not os.path.exists(path):
     exit(0)
 
 with open(path, "r") as f:
-    lines = f.readlines()
+    content = f.read()
 
 print("=== before ===")
-for line in lines:
-    print(repr(line))
+print(content)
 
-new_lines = []
-for line in lines:
-    if "linux" in line.lower() and "=" in line:
-        key = line.split("=")[0].strip()
-        new_lines.append(key + ' = ""\n')
-        print("PATCHED:", repr(line), "->", repr(key + ' = ""\n'))
-    else:
-        new_lines.append(line)
+# الحل الجذري: اكتب الملف من الصفر بدون أي مكتبة linux
+new_content = """[configuration]
+entry_symbol = "gdextension_init"
+compatibility_minimum = "4.1"
+
+[libraries]
+windows.x86_64 = ""
+macos.x86_64 = ""
+android.arm64 = ""
+android.x86_64 = ""
+"""
 
 with open(path, "w") as f:
-    f.writelines(new_lines)
+    f.write(new_content)
 
 print("=== after ===")
-with open(path, "r") as f:
-    print(f.read())
+print(new_content)
