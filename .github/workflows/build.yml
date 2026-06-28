@@ -104,31 +104,23 @@ jobs:
           wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz
           unzip -qo Godot_v4.7-stable_export_templates.tpz
           mv templates/* "$TEMPLATE_PATH/"
-
       - name: Install Android Build Template
         run: |
-          echo "=== محتوى مجلد templates ==="
-          ls "$HOME/.local/share/godot/export_templates/4.7.stable/"
-          
           mkdir -p khayel/android/build
 
-          # البحث عن ملف android في الـ templates
-          ANDROID_ZIP=$(ls "$HOME/.local/share/godot/export_templates/4.7.stable/" | grep -i android | head -1)
-          echo "=== ملف Android الموجود: $ANDROID_ZIP ==="
-
-          cp "$HOME/.local/share/godot/export_templates/4.7.stable/$ANDROID_ZIP" \
-            khayel/android/build/android_source.zip
+          cp "$HOME/.local/share/godot/export_templates/4.7.stable/android_source.zip" \
+            khayel/android/build/
 
           cd khayel/android/build
           unzip -qo android_source.zip
           rm android_source.zip
 
           echo -n "4.7.stable" > .build_version
+
           echo "=== build_version ==="
           cat .build_version
-          echo ""
           echo "=== محتوى android/build ==="
-          ls khayel/android/build/ | head -20
+          ls | head -20
 
       - name: Setup Android Environment
         run: |
