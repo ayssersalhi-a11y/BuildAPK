@@ -78,20 +78,20 @@ jobs:
       - name: Setup Android Environment
         run: python3 scripts/setup_android.py
 
-
-      - name: Install Android Build Template
-        run: python3 scripts/install_template.py
-
       - name: Force Reimport
         run: |
           xvfb-run ./godot --headless --path "khayel" --import 2>&1 || true
           echo "Import done"
+
+      - name: Install Android Build Template
+        run: python3 scripts/install_template.py
 
       - name: Verify build_version
         run: |
           FILE="$(pwd)/khayel/android/build/.build_version"
           cat "$FILE"
           wc -c "$FILE"
+
       - name: Diagnose
         run: |
           echo "=== SDK structure ==="
