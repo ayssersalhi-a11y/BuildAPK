@@ -38,171 +38,45 @@ jobs:
           rm -rf khayel/android/build
 
       - name: Disable gdffmpeg on Linux
-        run: |
-          GDEXT="khayel/addons/gdffmpeg/gdffmpeg.gdextension"
-          if [ -f "$GDEXT" ]; then
-            echo "=== قبل ==="
-            cat "$GDEXT"
-            python3 << 'PYEOF'
-          path = "khayel/addons/gdffmpeg/gdffmpeg.gdextension"
-          with open(path, "r") as f:
-              content = f.read()
-          lines = content.splitlines()
-          new_lines = []
-          for line in lines:
-              if "linux" in line.lower() and "=" in line:
-                  key = line.split("=")[0].strip()
-                  new_lines.append(f'{key} = ""')
-              else:
-                  new_lines.append(line)
-          result = "\n".join(new_lines) + "\n"
-          with open(path, "w") as f:
-              f.write(result)
-          print("=== بعد ===")
-          print(result)
-          PYEOF
-          else
-            echo "⚠️ gdffmpeg.gdextension غير موجود"
-          fi
+        run: python3 scripts/fix_gdffmpeg.py
 
       - name: Fix Project Files
+        run: python3 scripts/fix_project.py
+
+      - name: Setup Godot Engine & Templates
         run: |
-          # === نقل plugins ===
-          if [ -d "khayel/addons/plugins" ]; then
-            mkdir -p khayel/android/plugins
-            cp -r khayel/addons/plugins/* khayel/android/plugins/
-            echo "✅ Plugins copied"
-            ls khayel/android/plugins/
-          else
-            echo "⚠️ لا يوجد مجلد addons/plugins"
-          fi
+          wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip
+          unzip -qo Godot_v4.7-stable_linux.x86_64.zip
+          mv Godot_v4.7-stable_linux.x86_64 godot
+          chmod +x godot
+          TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
+          mkdir -p "$TEMPLATE_PATH"
+          wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz
+          unzip -qo Godot_v4.7-stable_export_templates.tpz
+          mv templates/* "$TEMPLATE_PATH/"
+          ls -lh "$TEMPLATE_PATH/android_source.zip" || echo "NOT FOUND"
 
-          # === تفعيل LamoushiAds ===
-          if grep -q "plugins/LamoushiAds" khayel/export_presets.cfg; then
-            sed -i 's|plugins/LamoushiAds=.*|plugins/LamoushiAds=true|' khayel/export_presets.cfg
-          else
-            sed -i '/\[preset\.0\.options\]/a plugins/LamoushiAds=true' khayel/export_presets.cfg
-          fi
-
-          # === ETC2/ASTC ===
-          if grep -q "import_etc2_astc" khayel/project.godot; then
-            sed -i 's/import_etc2_astc=false/import_etc2_astc=true/' khayel/project.godot
-          else
-            printf '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n' >> khayel/project.godot
-          fi
-
-          # === export_presets.cfg ===
-          APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
-          KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi.keystore.jks"
-          mkdir -p "$(dirname $APK_PATH)"
-
-          sed -i 's|export_path=.*|export_path="'"$APK_PATH"'"|' khayel/export_presets.cfg
-          sed -i 's|custom_template/debug=.*|custom_template/debug=""|' khayel/export_presets.cfg
-          sed -i 's|custom_template/release=.*|custom_template/release=""|' khayel/export_presets.cfg
-
-          python3 -c "
-import os
-keystore = os.environ.get('KEYSTORE_PATH', '$(pwd)/khayel/script/lamoushi.keystore.jks')
-lines = [
-    '',
-    'keystore/debug=\"' + keystore + '\"',
-    'keystore/debug_user=\"lamoushi_key\"',
-    'keystore/debug_password=\"24ay58s.s24er58\"',
-    'keystore/release=\"' + keystore + '\"',
-    'keystore/release_user=\"lamoushi_key\"',
-    'keystore/release_password=\"24ay58s.s24er58\"',
-]
-with open('khayel/export_presets.cfg', 'a') as f:
-    f.write('\n'.join(lines) + '\n')
-print('✅ keystore added')
-"
-
-          echo "====== export_path ======"
-          grep "export_path" khayel/export_presets.cfg
-          echo "====== keystore ======"
-          grep -i "keystore" khayel/export_presets.cfg
-          echo "====== Keystore exists? ======"
-          ls -lh "$KEYSTORE_PATH" || echo "❌ KEYSTORE NOT FOUND!"
-
-        
       - name: Setup Android Environment
-        run: |
-          mkdir -p $ANDROID_HOME/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-          unzip -q tools.zip -d $ANDROID_HOME/cmdline-tools
-          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
-
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            --sdk_root=$ANDROID_HOME \
-            "platform-tools" \
-            "build-tools;34.0.0"
-
-          for i in 1 2 3; do
-            echo "Attempt $i: Installing platforms;android-34"
-            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-              --sdk_root=$ANDROID_HOME \
-              "platforms;android-34" && break || sleep 5
-          done
-
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            --sdk_root=$ANDROID_HOME --licenses
-
-          KEYSTORE_PATH="$(pwd)/khayel/script/lamoushi.keystore.jks"
-          mkdir -p ~/.config/godot
-
-          # الإصلاح: اسم الملف يجب أن يكون editor_settings-4.7.tres
-          cat > ~/.config/godot/editor_settings-4.7.tres << EOF
-[gd_resource type="EditorSettings" format=3]
-
-[resource]
-export/android/sdk_path = "$ANDROID_HOME"
-export/android/debug_keystore = "$KEYSTORE_PATH"
-export/android/debug_keystore_user = "lamoushi_key"
-export/android/debug_keystore_pass = "24ay58s.s24er58"
-EOF
-
-          echo "=== editor_settings موجود؟ ==="
-          ls -lh ~/.config/godot/
+        run: python3 scripts/setup_android.py
 
       - name: Install Android Build Template
-        run: |
-          TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
-          BUILD_DIR="$(pwd)/khayel/android/build"
-
-          mkdir -p "$BUILD_DIR"
-          cp "$TEMPLATE_PATH/android_source.zip" "$BUILD_DIR/"
-
-          cd "$BUILD_DIR"
-          unzip -qo android_source.zip
-          rm android_source.zip
-          find . -name "project.godot" -delete
-
-          # الإصلاح: python3 يكتب بدون newline مضمون 100%
-          python3 -c "open('.build_version','w').write('4.7.stable')"
-
-          echo "=== التحقق ==="
-          cat .build_version
-          wc -c .build_version
-          ls -la | grep build_version
+        run: python3 scripts/install_template.py
 
       - name: Force Reimport
         run: |
           xvfb-run ./godot --headless --path "khayel" --import 2>&1 || true
-          echo "✅ Import done"
+          echo "Import done"
 
       - name: Verify build_version
         run: |
           FILE="$(pwd)/khayel/android/build/.build_version"
-          echo "الملف موجود؟ $(ls -la $FILE 2>/dev/null || echo ❌ غير موجود)"
-          echo "المحتوى: $(cat $FILE 2>/dev/null || echo فارغ)"
-          echo "الحجم بالـ bytes:"
-          wc -c "$FILE" 2>/dev/null || echo "لا يمكن قراءته"
+          cat "$FILE"
+          wc -c "$FILE"
 
       - name: Build APK
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
           mkdir -p "$(dirname $APK_PATH)"
-
           xvfb-run ./godot --headless --path "$(pwd)/khayel" \
             --export-release "Android" "$APK_PATH" 2>&1 | tee build_log.txt
 
@@ -210,12 +84,11 @@ EOF
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
           if [ ! -f "$APK_PATH" ]; then
-            echo "❌ APK not found!"
-            echo "=== build_log كامل ==="
+            echo "APK not found!"
             cat build_log.txt
             exit 1
           else
-            echo "✅ APK built successfully!"
+            echo "APK built successfully!"
             du -sh "$APK_PATH"
           fi
 
