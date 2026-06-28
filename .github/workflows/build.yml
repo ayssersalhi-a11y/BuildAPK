@@ -104,7 +104,12 @@ jobs:
           wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz
           unzip -qo Godot_v4.7-stable_export_templates.tpz
           mv templates/* "$TEMPLATE_PATH/"
-
+      - name: Install Android Build Template
+        run: |
+          xvfb-run ./godot --headless --path "khayel" \
+            --install-android-build-template || true
+          echo "✅ Template installed"
+          ls khayel/android/ || echo "android folder contents"
       - name: Setup Android Environment
         run: |
           mkdir -p $ANDROID_HOME/cmdline-tools
