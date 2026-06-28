@@ -95,6 +95,12 @@ jobs:
 
       - name: Diagnose
         run: |
+          echo "=== strings في godot binary ==="
+          strings ./godot | grep -i "build_version\|android/build" | head -20
+
+          echo "=== محتوى .build_version ==="
+          xxd khayel/android/build/.build_version
+
           echo "=== كل ملفات .build_version ==="
           find /home/runner -name ".build_version" 2>/dev/null
 
@@ -104,8 +110,8 @@ jobs:
           echo "=== gdffmpeg after patch ==="
           cat khayel/addons/gdffmpeg/gdffmpeg.gdextension
 
-          echo "=== editor_settings ==="
-          cat ~/.config/godot/editor_settings-4.7.tres | grep android     
+          echo "=== editor_settings android lines ==="
+          cat ~/.config/godot/editor_settings-4.7.tres | grep android
 
       - name: Build APK
         run: |
