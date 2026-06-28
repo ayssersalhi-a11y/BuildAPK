@@ -152,13 +152,16 @@ jobs:
           unzip -qo android_source.zip
           rm android_source.zip
 
+          # حذف project.godot الوهمي داخل الـ template
+          rm -f src/instrumented/assets/project.godot
+
           echo -n "4.7.stable" > .build_version
 
           echo "=== build_version ==="
           cat .build_version
           echo "=== محتوى android/build ==="
           ls | head -20
-          
+      
       - name: Build APK
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
