@@ -100,15 +100,22 @@ jobs:
           sed -i 's|custom_template/debug=.*|custom_template/debug=""|' khayel/export_presets.cfg
           sed -i 's|custom_template/release=.*|custom_template/release=""|' khayel/export_presets.cfg
 
-          cat >> khayel/export_presets.cfg << EOF
-
-keystore/debug="$KEYSTORE_PATH"
-keystore/debug_user="lamoushi_key"
-keystore/debug_password="24ay58s.s24er58"
-keystore/release="$KEYSTORE_PATH"
-keystore/release_user="lamoushi_key"
-keystore/release_password="24ay58s.s24er58"
-EOF
+          python3 -c "
+import os
+keystore = os.environ.get('KEYSTORE_PATH', '$(pwd)/khayel/script/lamoushi.keystore.jks')
+lines = [
+    '',
+    'keystore/debug=\"' + keystore + '\"',
+    'keystore/debug_user=\"lamoushi_key\"',
+    'keystore/debug_password=\"24ay58s.s24er58\"',
+    'keystore/release=\"' + keystore + '\"',
+    'keystore/release_user=\"lamoushi_key\"',
+    'keystore/release_password=\"24ay58s.s24er58\"',
+]
+with open('khayel/export_presets.cfg', 'a') as f:
+    f.write('\n'.join(lines) + '\n')
+print('✅ keystore added')
+"
 
           echo "====== export_path ======"
           grep "export_path" khayel/export_presets.cfg
@@ -117,22 +124,7 @@ EOF
           echo "====== Keystore exists? ======"
           ls -lh "$KEYSTORE_PATH" || echo "❌ KEYSTORE NOT FOUND!"
 
-      - name: Setup Godot Engine & Templates
-        run: |
-          wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip
-          unzip -qo Godot_v4.7-stable_linux.x86_64.zip
-          mv Godot_v4.7-stable_linux.x86_64 godot
-          chmod +x godot
-
-          TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
-          mkdir -p "$TEMPLATE_PATH"
-          wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz
-          unzip -qo Godot_v4.7-stable_export_templates.tpz
-          mv templates/* "$TEMPLATE_PATH/"
-
-          echo "=== android_source.zip موجود؟ ==="
-          ls -lh "$TEMPLATE_PATH/android_source.zip" || echo "❌ غير موجود!"
-
+        
       - name: Setup Android Environment
         run: |
           mkdir -p $ANDROID_HOME/cmdline-tools
