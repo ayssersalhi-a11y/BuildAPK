@@ -1,32 +1,70 @@
-# scripts/fix_gdffmpeg.py
 import os
+import shutil
 
-path = "khayel/addons/gdffmpeg/gdffmpeg.gdextension"
+cwd = os.getcwd()
 
-if not os.path.exists(path):
-    print("NOT FOUND:", path)
-    exit(0)
+# 1. احذف المجلد كلياً
+addon_dir = "khayel/addons/gdffmpeg"
+if os.path.exists(addon_dir):
+    shutil.rmtree(addon_dir)
+    print("DELETED:", addon_dir)
+else:
+    print("Already gone:", addon_dir)
 
-with open(path, "r") as f:
-    content = f.read()
+# 2. أزل المرجع من project.godot
+project_file = "khayel/project.godot"
+with open(project_file, "r") as f:
+    lines = f.readlines()
 
-print("=== before ===")
-print(content)
+new_lines = []
+for line in lines:
+    if "gdffmpeg" in line.lower():
+        print("REMOVED from project.godot:", repr(line.strip()))
+        continue
+    new_lines.append(line)
 
-# الحل الجذري: اكتب الملف من الصفر بدون أي مكتبة linux
-new_content = """[configuration]
-entry_symbol = "gdextension_init"
-compatibility_minimum = "4.1"
+with open(project_file, "w") as f:
+    f.writelines(new_lines)
 
-[libraries]
-windows.x86_64 = ""
-macos.x86_64 = ""
-android.arm64 = ""
-android.x86_64 = ""
-"""
+# 3. أزل المرجع من أي ملف .cfg أو .tres
+for root, dirs, files in os.walk("khayel"):
+    # تجاهل .godot cache
+    dirs[:] = [d for d in dirs if d != ".godot"]
+    for fname in files:
+        if fname.endswith((".cfg", ".tres", ".tscn", ".gd")):
+            fpath = os.path.join(root, fname)
+            try:
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                if "gdffmpeg" in content.lower():
+                    new_content = "\n".join(
+                        line for line in content.splitlines()
+                        if "gdffmpeg" not in line.lower()
+                    )
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                    print("Cleaned gdffmpeg from:", fpath)
+            except Exception as e:
+                print("Skip:", fpath, e)
 
-with open(path, "w") as f:
-    f.write(new_content)
+print("=== gdffmpeg fully removed ===")
 
-print("=== after ===")
-print(new_content)
+# تحقق نهائي
+remaining = []
+for root, dirs, files in os.walk("khayel"):
+    dirs[:] = [d for d in dirs if d != ".godot"]
+    for fname in files:
+        fpath = os.path.join(root, fname)
+        try:
+            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                if "gdffmpeg" in f.read().lower():
+                    remaining.append(fpath)
+        except:
+            pass
+
+if remaining:
+    print("WARNING - gdffmpeg still found in:")
+    for r in remaining:
+        print(" ", r)
+else:
+    print("CLEAN - No gdffmpeg references remain")
