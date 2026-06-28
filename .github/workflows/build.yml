@@ -118,14 +118,14 @@ jobs:
 
           echo -n "4.7.stable" > .build_version
 
-          echo "=== build_version file ==="
-          ls -la | grep build_version
-          cat .build_version
+          echo "=== build_version المسار الكامل ==="
+          cat /home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/khayel/android/build/.build_version
           echo ""
-          echo "=== gradle_build in export_presets ==="
-          grep "gradle_build" /home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/khayel/export_presets.cfg || echo "غير موجود"
+          echo "=== ls -la ==="
+          ls -la /home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/khayel/android/build/ | grep build_version
           echo "=== محتوى android/build ==="
           ls | head -20
+
 
       - name: Setup Android Environment
         run: |
