@@ -106,12 +106,7 @@ jobs:
 
           echo "=== Godot source: أين يبحث؟ ==="
           strings ./godot | grep build_version || echo "لا يوجد في binary"      - name: Build APK
-        run: |
-          APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
-          mkdir -p "$(dirname $APK_PATH)"
-          xvfb-run ./godot --headless --path "$(pwd)/khayel" \
-            --export-release "Android" "$APK_PATH" 2>&1 | tee build_log.txt
-
+        
       - name: Verify APK Exists
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
