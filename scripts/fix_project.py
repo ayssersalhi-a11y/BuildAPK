@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import re
 
 cwd = os.getcwd()
 
@@ -66,10 +67,17 @@ os.makedirs(os.path.dirname(apk_path), exist_ok=True)
 with open(cfg, "r") as f:
     content = f.read()
 
-import re
 content = re.sub(r'export_path=.*', f'export_path="{apk_path}"', content)
 content = re.sub(r'custom_template/debug=.*', 'custom_template/debug=""', content)
 content = re.sub(r'custom_template/release=.*', 'custom_template/release=""', content)
+
+# الإصلاح الجوهري: تحديد مسار android/build
+content = re.sub(
+    r'gradle_build/gradle_build_directory=.*',
+    'gradle_build/gradle_build_directory="res://android/build"',
+    content
+)
+print("gradle_build_directory set to res://android/build")
 
 content += "\n"
 content += 'keystore/debug="' + keystore_path + '"\n'
