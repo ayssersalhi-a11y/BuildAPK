@@ -92,17 +92,20 @@ jobs:
           cat "$FILE"
           wc -c "$FILE"
 
+
       - name: Diagnose
         run: |
-          echo "=== SDK structure ==="
-          find /home/runner/android-sdk -maxdepth 3 -type d
+          echo "=== كل ملفات .build_version ==="
+          find / -name ".build_version" 2>/dev/null
 
-          echo "=== gdffmpeg after patch ==="
-          cat khayel/addons/gdffmpeg/gdffmpeg.gdextension
+          echo "=== محتوى android/build ==="
+          ls -la khayel/android/build/
 
-          echo "=== editor_settings ==="
-          cat ~/.config/godot/editor_settings-4.7.tres
-      - name: Build APK
+          echo "=== هل يوجد android/build داخل .godot ==="
+          find khayel/.godot -name ".build_version" 2>/dev/null || echo "لا يوجد"
+
+          echo "=== Godot source: أين يبحث؟ ==="
+          strings ./godot | grep build_version || echo "لا يوجد في binary"      - name: Build APK
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
           mkdir -p "$(dirname $APK_PATH)"
