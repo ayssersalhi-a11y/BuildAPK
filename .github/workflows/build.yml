@@ -40,6 +40,14 @@ jobs:
       - name: Disable gdffmpeg on Linux
         run: python3 scripts/fix_gdffmpeg.py
 
+      - name: Verify gdffmpeg removed
+        run: |
+          if [ -d "khayel/addons/gdffmpeg" ]; then
+            echo "FAILED - directory still exists!"
+            exit 1
+          fi
+          echo "OK - gdffmpeg fully removed"
+
       - name: Fix Project Files
         run: python3 scripts/fix_project.py
 
@@ -72,68 +80,55 @@ jobs:
           yes | /home/runner/android-sdk/cmdline-tools/latest/bin/sdkmanager \
             --sdk_root=/home/runner/android-sdk --licenses
 
-          echo "=== SDK تم تثبيته ==="
+          echo "=== SDK installed ==="
           ls /home/runner/android-sdk/
 
       - name: Setup Android Environment
         run: python3 scripts/setup_android.py
 
-      - name: Force Reimport
-        run: |
-          xvfb-run ./godot --headless --path "khayel" --import 2>&1 || true
-          echo "Import done"
-
       - name: Install Android Build Template
         run: |
-            cd khayel
-            xvfb-run ../godot --headless --path "." \
-             --install-android-build-template 2>&1 || true
-            cd ..
-    
-                  # تحقق
-            echo "=== build dir contents ==="
-            ls -la khayel/android/build/ 2>/dev/null || echo "NOT FOUND"
-            echo "=== .build_version ==="
-            cat khayel/android/build/.build_version 2>/dev/null || echo "NOT FOUND"
-     
+          cd khayel
+          xvfb-run ../godot --headless --path "." \
+            --install-android-build-template 2>&1 || true
+          cd ..
+
+          echo "=== build dir contents ==="
+          ls -la khayel/android/build/ 2>/dev/null || echo "NOT FOUND"
+          echo "=== .build_version ==="
+          cat khayel/android/build/.build_version 2>/dev/null || echo "NOT FOUND"
+
       - name: Check template version match
         run: |
-          BUILD_VER=$(cat khayel/android/build/.build_version)
+          BUILD_VER=$(cat khayel/android/build/.build_version 2>/dev/null || echo "MISSING")
           TEMPLATE_VER=$(cat ~/.local/share/godot/export_templates/4.7.stable/version.txt 2>/dev/null || echo "NOT FOUND")
           echo "build_version:  '$BUILD_VER'"
           echo "template ver:   '$TEMPLATE_VER'"
+          if [ "$BUILD_VER" = "MISSING" ]; then
+            echo "ERROR: .build_version not created - template install failed!"
+            exit 1
+          fi
           if [ "$BUILD_VER" != "$TEMPLATE_VER" ]; then
-            echo "MISMATCH! هذا سيسبب فشل البناء"
+            echo "MISMATCH - سيسبب فشل البناء"
             exit 1
           fi
           echo "OK - الإصداران متطابقان"
-             
-      - name: Verify build_version
-        run: |
-          FILE="$(pwd)/khayel/android/build/.build_version"
-          cat "$FILE"
-          wc -c "$FILE"
 
+      - name: Force Reimport
+        run: |
+          xvfb-run ./godot --headless --path "khayel" --import --quit-after 5000 2>&1 || true
+          echo "Import done"
 
       - name: Diagnose
         run: |
-          echo "=== strings في godot binary ==="
-          strings ./godot | grep -i "build_version\|android/build" | head -20
+          echo "=== editor_settings android lines ==="
+          grep android ~/.config/godot/editor_settings-4.7.tres || echo "NOT FOUND"
 
-          echo "=== محتوى .build_version ==="
-          xxd khayel/android/build/.build_version
-
-          echo "=== كل ملفات .build_version ==="
-          find /home/runner -name ".build_version" 2>/dev/null
-
-          echo "=== محتوى android/build ==="
+          echo "=== android/build contents ==="
           ls -la khayel/android/build/
 
-          echo "=== gdffmpeg after patch ==="
-          cat khayel/addons/gdffmpeg/gdffmpeg.gdextension
-
-          echo "=== editor_settings android lines ==="
-          cat ~/.config/godot/editor_settings-4.7.tres | grep android
+          echo "=== export_presets.cfg ==="
+          cat khayel/export_presets.cfg | grep -E "gradle|export_path|keystore" || echo "NOT FOUND"
 
       - name: Build APK
         run: |
@@ -142,10 +137,9 @@ jobs:
 
           cd khayel
           xvfb-run ../godot --headless --path "." \
-          --export-release "Android" "$APK_PATH" 2>&1 | tee ../build_log.txt
+            --export-release "Android" "$APK_PATH" 2>&1 | tee ../build_log.txt
           cd ..
 
-        
       - name: Verify APK Exists
         run: |
           APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
