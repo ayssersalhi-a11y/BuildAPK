@@ -154,15 +154,15 @@ jobs:
 
           # حذف كل ملفات project.godot داخل الـ template
           find . -name "project.godot" -delete
-          echo "=== بحث عن project.godot بعد الحذف ==="
-          find . -name "project.godot" || echo "✅ لا يوجد project.godot"
 
           echo -n "4.7.stable" > .build_version
 
+          echo "=== بحث عن .build_version ==="
+          find /home/runner/work -name ".build_version" -ls 2>/dev/null || echo "غير موجود!"
           echo "=== build_version ==="
           cat .build_version
           echo "=== محتوى android/build ==="
-          ls | head -20
+          ls -la | head -20
       
       - name: Build APK
         run: |
