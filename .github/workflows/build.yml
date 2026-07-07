@@ -98,8 +98,11 @@ jobs:
           unzip -qo android_source.zip
           rm android_source.zip
 
-          # إنشاء ملف التجاهل لحماية الـ Import المبدئي من التجمد
-          echo "" > "$BUILD_DIR/.gdignore"
+          # الحل الذكي: وضع ملفات التجاهل داخل المجلدات الفرعية الضخمة فقط
+          # هذا يمنع جودو من الفحص العشوائي لملفات الجافا والاختبارات ويحمي التصدير
+          mkdir -p build godot-lib
+          echo "" > "build/.gdignore"
+          echo "" > "godot-lib/.gdignore"
 
           # احذف أي project.godot داخل التيمبليت
           find . -name "project.godot" -delete
@@ -163,10 +166,6 @@ jobs:
           
           # التحقق من وجود المجلد والملفات
           test -f "android/build/build.gradle" && echo "EXISTS at export time" || echo "MISSING at export time"
-
-          # حذف ملف التجاهل فوراً هنا لكي يرى جودو التيمبليت ويوافق على التصدير
-          rm -f android/build/.gdignore
-          echo "Removed .gdignore to allow Godot to see the build template"
 
           xvfb-run ../godot --headless --path "." \
             --export-release "Android" "$APK_PATH" 2>&1 | tee ../build_log.txt
