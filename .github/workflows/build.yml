@@ -98,7 +98,7 @@ jobs:
           unzip -qo android_source.zip
           rm android_source.zip
 
-          # السطر المطلوب: منع جودو من فحص ملفات الأندرويد داخلياً
+          # إنشاء ملف التجاهل لحماية الـ Import المبدئي من التجمد
           echo "" > "$BUILD_DIR/.gdignore"
 
           # احذف أي project.godot داخل التيمبليت
@@ -119,6 +119,7 @@ jobs:
           ls -la "$BUILD_DIR" | head -20
           echo "=== .build_version ==="
           cat "$BUILD_DIR/.build_version"
+
 
 
       - name: Check template version match
@@ -160,12 +161,17 @@ jobs:
 
           cd khayel
           
-          # السطر المطلوب: التحقق من وجود ملف build.gradle قبل بدء التصدير مباشرة
+          # التحقق من وجود المجلد والملفات
           test -f "android/build/build.gradle" && echo "EXISTS at export time" || echo "MISSING at export time"
+
+          # حذف ملف التجاهل فوراً هنا لكي يرى جودو التيمبليت ويوافق على التصدير
+          rm -f android/build/.gdignore
+          echo "Removed .gdignore to allow Godot to see the build template"
 
           xvfb-run ../godot --headless --path "." \
             --export-release "Android" "$APK_PATH" 2>&1 | tee ../build_log.txt
           cd ..
+
 
       - name: Verify APK Exists
         run: |
