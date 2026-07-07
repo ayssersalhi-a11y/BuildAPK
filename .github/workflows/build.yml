@@ -98,6 +98,9 @@ jobs:
           unzip -qo android_source.zip
           rm android_source.zip
 
+          # السطر المطلوب: منع جودو من فحص ملفات الأندرويد داخلياً
+          echo "" > "$BUILD_DIR/.gdignore"
+
           # احذف أي project.godot داخل التيمبليت
           find . -name "project.godot" -delete
           echo "Deleted stray project.godot files"
@@ -116,6 +119,7 @@ jobs:
           ls -la "$BUILD_DIR" | head -20
           echo "=== .build_version ==="
           cat "$BUILD_DIR/.build_version"
+
 
       - name: Check template version match
         run: |
@@ -155,6 +159,10 @@ jobs:
           mkdir -p "$(dirname $APK_PATH)"
 
           cd khayel
+          
+          # السطر المطلوب: التحقق من وجود ملف build.gradle قبل بدء التصدير مباشرة
+          test -f "android/build/build.gradle" && echo "EXISTS at export time" || echo "MISSING at export time"
+
           xvfb-run ../godot --headless --path "." \
             --export-release "Android" "$APK_PATH" 2>&1 | tee ../build_log.txt
           cd ..
