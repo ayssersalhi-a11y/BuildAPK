@@ -92,36 +92,29 @@ jobs:
           BUILD_DIR="$(pwd)/khayel/android/build"
           mkdir -p "$BUILD_DIR"
 
-          # تثبيت يدوي مباشر بدون Godot لتجنب التجمد
+          # تثبيت يدوي مباشر للتيمبليت
           cp "$TEMPLATE_PATH/android_source.zip" "$BUILD_DIR/"
           cd "$BUILD_DIR"
           unzip -qo android_source.zip
           rm android_source.zip
 
-          # الحل الذكي: وضع ملفات التجاهل داخل المجلدات الفرعية الضخمة فقط
-          # هذا يمنع جودو من الفحص العشوائي لملفات الجافا والاختبارات ويحمي التصدير
-          mkdir -p build godot-lib
-          echo "" > "build/.gdignore"
-          echo "" > "godot-lib/.gdignore"
-
           # احذف أي project.godot داخل التيمبليت
           find . -name "project.godot" -delete
           echo "Deleted stray project.godot files"
 
-          # اكتب .build_version من version.txt الرسمي
+          # اكتب .build_version من version.txt الرسمي لتطابق النسخ
           VERSION=$(cat "$TEMPLATE_PATH/version.txt" 2>/dev/null || echo "4.7.stable.official")
           printf "%s" "$VERSION" > .build_version
-          echo "build_version: $(cat .build_version)"
 
-          # ملف مطلوب من Godot
+          # تفعيل علامة جاهزية التيمبليت للمحرك
           touch _was_built
-
           cd -
 
-          echo "=== build dir contents ==="
-          ls -la "$BUILD_DIR" | head -20
-          echo "=== .build_version ==="
-          cat "$BUILD_DIR/.build_version"
+          # إصلاح وضبط مسار مجلد الجرادل في ملف export_presets.cfg ليتعرف عليه جودو فوراً
+          sed -i 's|gradle_build/gradle_build_directory=""|gradle_build/gradle_build_directory="res://android/build"|g' khayel/export_presets.cfg
+
+          echo "=== Verified Preset Configuration ==="
+          grep "gradle_build_directory" khayel/export_presets.cfg
 
 
 
@@ -164,12 +157,14 @@ jobs:
 
           cd khayel
           
-          # التحقق من وجود المجلد والملفات
+          # التحقق من استقرار الملفات قبل البناء
           test -f "android/build/build.gradle" && echo "EXISTS at export time" || echo "MISSING at export time"
 
+          # تصدير التطبيق مباشرة مع تحويل المخرجات إلى ملف لوج لمراقبة المعالجة
           xvfb-run ../godot --headless --path "." \
             --export-release "Android" "$APK_PATH" 2>&1 | tee ../build_log.txt
           cd ..
+
 
 
       - name: Verify APK Exists
