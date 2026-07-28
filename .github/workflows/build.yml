@@ -88,51 +88,12 @@ jobs:
 
       - name: Install Android Build Template
         run: |
-          TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
-          BUILD_DIR="$(pwd)/khayel/android/build"
-          mkdir -p "$BUILD_DIR"
-
-          # تثبيت يدوي مباشر للتيمبليت
-          cp "$TEMPLATE_PATH/android_source.zip" "$BUILD_DIR/"
-          cd "$BUILD_DIR"
-          unzip -qo android_source.zip
-          rm android_source.zip
-
-          # احذف أي project.godot داخل التيمبليت
-          find . -name "project.godot" -delete
-          echo "Deleted stray project.godot files"
-
-          # اكتب .build_version من version.txt الرسمي لتطابق النسخ
-          VERSION=$(cat "$TEMPLATE_PATH/version.txt" 2>/dev/null || echo "4.7.stable.official")
-          printf "%s" "$VERSION" > .build_version
-
-          # تفعيل علامة جاهزية التيمبليت للمحرك
-          touch _was_built
-          cd -
-
-          # إصلاح وضبط مسار مجلد الجرادل في ملف export_presets.cfg ليتعرف عليه جودو فوراً
-          sed -i 's|gradle_build/gradle_build_directory=""|gradle_build/gradle_build_directory="res://android/build"|g' khayel/export_presets.cfg
-
-          echo "=== Verified Preset Configuration ==="
-          grep "gradle_build_directory" khayel/export_presets.cfg
+          xvfb-run ./godot --headless --path "khayel" --install-android-build-template
+          echo "=== android/build contents ==="
+          ls -la khayel/android/build/ | head -30
+          test -f khayel/android/build/build.gradle && echo "OK: build.gradle exists" || echo "FAILED: build.gradle missing"
 
 
-
-      - name: Check template version match
-        run: |
-          BUILD_VER=$(cat khayel/android/build/.build_version 2>/dev/null || echo "MISSING")
-          TEMPLATE_VER=$(cat ~/.local/share/godot/export_templates/4.7.stable/version.txt 2>/dev/null || echo "NOT FOUND")
-          echo "build_version : '$BUILD_VER'"
-          echo "template ver  : '$TEMPLATE_VER'"
-          if [ "$BUILD_VER" = "MISSING" ]; then
-            echo "ERROR: .build_version not created!"
-            exit 1
-          fi
-          if [ "$BUILD_VER" != "$TEMPLATE_VER" ]; then
-            echo "MISMATCH - سيسبب فشل البناء"
-            exit 1
-          fi
-          echo "OK - الإصداران متطابقان"
 
       - name: Force Reimport
         run: |
