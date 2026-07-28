@@ -99,7 +99,7 @@ jobs:
 
       - name: Install Android Build Template
         run: |
-          xvfb-run ./godot --headless --path "khayel" --install-android-build-template
+          xvfb-run ./godot --headless --path "khayel" --install-android-build-template --quit-after 10
           echo "=== android/build contents ==="
           ls -la khayel/android/build/ | head -30
           test -f khayel/android/build/build.gradle && echo "OK: build.gradle exists" || echo "FAILED: build.gradle missing"
