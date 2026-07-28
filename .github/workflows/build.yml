@@ -92,18 +92,34 @@ jobs:
       - name: Setup Android Environment
         run: python3 scripts/setup_android.py
 
-      - name: Import Project
-        run: |
-          xvfb-run ./godot --headless --path "khayel" --import --quit-after 5000 2>&1 || true
-          echo "Import done"
-
       - name: Install Android Build Template
         run: |
-          xvfb-run ./godot --headless --path "khayel" --install-android-build-template --quit-after 10
-          echo "=== android/build contents ==="
-          ls -la khayel/android/build/ | head -30
-          test -f khayel/android/build/build.gradle && echo "OK: build.gradle exists" || echo "FAILED: build.gradle missing"
+          TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
+          BUILD_DIR="$(pwd)/khayel/android/build"
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR"
+          unzip -qo "$TEMPLATE_PATH/android_source.zip" -d "$BUILD_DIR"
 
+          echo "=== محتوى المجلد بعد فك الضغط ==="
+          find "$BUILD_DIR" -maxdepth 2
+
+          # إذا كان build.gradle داخل مجلد فرعي إضافي، سطّح المسار
+          if [ ! -f "$BUILD_DIR/build.gradle" ]; then
+            SUBDIR=$(find "$BUILD_DIR" -maxdepth 3 -name "build.gradle" | head -1 | xargs dirname)
+            if [ -n "$SUBDIR" ] && [ "$SUBDIR" != "$BUILD_DIR" ]; then
+              echo "تم العثور على build.gradle داخل: $SUBDIR — جارٍ التسطيح"
+              shopt -s dotglob
+              mv "$SUBDIR"/* "$BUILD_DIR"/
+              shopt -u dotglob
+            fi
+          fi
+
+          find "$BUILD_DIR" -name "project.godot" -delete
+
+          VERSION=$(cat "$TEMPLATE_PATH/version.txt" 2>/dev/null || echo "4.7.stable.official")
+          printf "%s" "$VERSION" > "$BUILD_DIR/.build_version"
+
+          test -f "$BUILD_DIR/build.gradle" && echo "OK: build.gradle موجود في المسار الصحيح" || (echo "FAILED: لم يُعثر عليه" && exit 1)
       - name: Force Reimport
         run: |
           xvfb-run ./godot --headless --path "khayel" --import --quit-after 5000 2>&1 || true
