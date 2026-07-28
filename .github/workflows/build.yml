@@ -21,11 +21,16 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk wget unzip sed xvfb \
+          sudo apt-get install -y wget unzip sed xvfb \
             libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libgbm1 \
             libvulkan1 libfontconfig1 liblzma5 liblzma-dev
           pip install --upgrade gdown
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
