@@ -57,7 +57,6 @@ else:
 # === export_presets.cfg paths ===
 repo = os.path.basename(os.environ.get("GITHUB_REPOSITORY", "BuildAPK/BuildAPK"))
 apk_path = f"/home/runner/work/{repo}/{repo}/build/android/Khayel_Final.apk"
-keystore_path = cwd + "/khayel/script/lamoushi.keystore.jks"
 
 os.makedirs(os.path.dirname(apk_path), exist_ok=True)
 
@@ -92,39 +91,15 @@ else:
     )
     print("use_gradle_build set to true")
 
-# إضافة keystore في المكان الصحيح داخل [preset.0.options]
-# أولاً احذف أي keystore قديم
-content = re.sub(r'keystore/debug=.*\n', '', content)
-content = re.sub(r'keystore/debug_user=.*\n', '', content)
-content = re.sub(r'keystore/debug_password=.*\n', '', content)
-content = re.sub(r'keystore/release=.*\n', '', content)
-content = re.sub(r'keystore/release_user=.*\n', '', content)
-content = re.sub(r'keystore/release_password=.*\n', '', content)
-
-# أضف keystore قبل نهاية الملف
-keystore_block = f"""keystore/debug="{keystore_path}"
-keystore/debug_user="lamoushi_key"
-keystore/debug_password="24ay58s.s24er58"
-keystore/release="{keystore_path}"
-keystore/release_user="lamoushi_key"
-keystore/release_password="24ay58s.s24er58"
-"""
-content = content.rstrip() + "\n" + keystore_block
-
 with open(cfg, "w") as f:
     f.write(content)
 
 # تحقق نهائي
 print("\n=== التحقق النهائي ===")
 print("export_path:", apk_path)
-print("keystore:", keystore_path)
-if os.path.exists(keystore_path):
-    print("Keystore: FOUND ✓")
-else:
-    print("Keystore: NOT FOUND ✗")
 
 # طباعة الأسطر المهمة من الملف
 with open(cfg, "r") as f:
     for line in f:
-        if any(k in line for k in ["export_path", "gradle_build", "keystore", "use_gradle"]):
+        if any(k in line for k in ["export_path", "gradle_build", "use_gradle"]):
             print(line.rstrip())
