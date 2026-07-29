@@ -6,13 +6,11 @@ on:
       - main
   workflow_dispatch:
 
-env:
-  ANDROID_HOME: /home/runner/android-sdk
-  GODOT_VERSION: 4.7
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.7
 
     steps:
       - name: Checkout Repository
@@ -20,17 +18,10 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget unzip sed xvfb \
-            libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libgbm1 \
-            libvulkan1 libfontconfig1 liblzma5 liblzma-dev
-          pip install --upgrade gdown
+          apt-get update
+          apt-get install -y wget unzip sed
+          pip install --upgrade gdown --break-system-packages
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
       - name: Download & Extract Project
         run: |
           rm -rf khayel khayel.zip
@@ -56,106 +47,68 @@ jobs:
       - name: Fix Project Files
         run: python3 scripts/fix_project.py
 
-      - name: Setup Godot Engine & Templates
+      - name: Import Project
         run: |
-          wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip
-          unzip -qo Godot_v4.7-stable_linux.x86_64.zip
-          mv Godot_v4.7-stable_linux.x86_64 godot
-          chmod +x godot
-          TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
-          mkdir -p "$TEMPLATE_PATH"
-          wget -q https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz
-          unzip -qo Godot_v4.7-stable_export_templates.tpz
-          mv templates/* "$TEMPLATE_PATH/"
-          ls -lh "$TEMPLATE_PATH/android_source.zip" || echo "NOT FOUND"
-
-      - name: Install Android SDK
-        run: |
-          mkdir -p /home/runner/android-sdk/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-          unzip -q tools.zip -d /home/runner/android-sdk/cmdline-tools
-          mv /home/runner/android-sdk/cmdline-tools/cmdline-tools /home/runner/android-sdk/cmdline-tools/latest
-
-          yes | /home/runner/android-sdk/cmdline-tools/latest/bin/sdkmanager \
-            --sdk_root=/home/runner/android-sdk \
-            "platform-tools" \
-            "build-tools;34.0.0" \
-            "platforms;android-34"
-
-          yes | /home/runner/android-sdk/cmdline-tools/latest/bin/sdkmanager \
-            --sdk_root=/home/runner/android-sdk --licenses
-
-          echo "=== SDK installed ==="
-          ls /home/runner/android-sdk/
-
-
-      - name: Setup Android Environment
-        run: python3 scripts/setup_android.py
+          godot --headless --path "khayel" --import --quit-after 5000 2>&1 || true
+          echo "Import done"
 
       - name: Install Android Build Template
         run: |
-          TEMPLATE_PATH="$HOME/.local/share/godot/export_templates/4.7.stable"
-          BUILD_DIR="$(pwd)/khayel/android/build"
-          rm -rf "$BUILD_DIR"
-          mkdir -p "$BUILD_DIR"
-          unzip -qo "$TEMPLATE_PATH/android_source.zip" -d "$BUILD_DIR"
+          godot --headless --path "khayel" --install-android-build-template --quit-after 10 2>&1 || true
+          echo "=== محتوى المجلد بعد التثبيت ==="
+          find khayel/android/build -maxdepth 2 2>/dev/null || echo "المجلد غير موجود"
+          test -f khayel/android/build/build.gradle && echo "OK: build.gradle موجود" || echo "سنستخدم الطريقة اليدوية كبديل"
 
-          echo "=== محتوى المجلد بعد فك الضغط ==="
-          find "$BUILD_DIR" -maxdepth 2
-
-          # إذا كان build.gradle داخل مجلد فرعي إضافي، سطّح المسار
-          if [ ! -f "$BUILD_DIR/build.gradle" ]; then
-            SUBDIR=$(find "$BUILD_DIR" -maxdepth 3 -name "build.gradle" | head -1 | xargs dirname)
-            if [ -n "$SUBDIR" ] && [ "$SUBDIR" != "$BUILD_DIR" ]; then
-              echo "تم العثور على build.gradle داخل: $SUBDIR — جارٍ التسطيح"
-              shopt -s dotglob
-              mv "$SUBDIR"/* "$BUILD_DIR"/
-              shopt -u dotglob
+      - name: Manual Template Fallback (if needed)
+        run: |
+          if [ ! -f "khayel/android/build/build.gradle" ]; then
+            echo "تثبيت يدوي احتياطي..."
+            TEMPLATE_PATH="/root/.local/share/godot/export_templates/4.7.stable"
+            if [ ! -f "$TEMPLATE_PATH/android_source.zip" ]; then
+              TEMPLATE_PATH=$(find / -name "android_source.zip" -path "*export_templates*" 2>/dev/null | head -1 | xargs dirname)
             fi
+            BUILD_DIR="$(pwd)/khayel/android/build"
+            rm -rf "$BUILD_DIR"
+            mkdir -p "$BUILD_DIR"
+            unzip -qo "$TEMPLATE_PATH/android_source.zip" -d "$BUILD_DIR"
+            if [ ! -f "$BUILD_DIR/build.gradle" ]; then
+              SUBDIR=$(find "$BUILD_DIR" -maxdepth 3 -name "build.gradle" | head -1 | xargs dirname)
+              if [ -n "$SUBDIR" ] && [ "$SUBDIR" != "$BUILD_DIR" ]; then
+                shopt -s dotglob
+                mv "$SUBDIR"/* "$BUILD_DIR"/
+                shopt -u dotglob
+              fi
+            fi
+            find "$BUILD_DIR" -name "project.godot" -delete
+            VERSION=$(cat "$TEMPLATE_PATH/version.txt" 2>/dev/null || echo "4.7.stable.official")
+            printf "%s" "$VERSION" > "$BUILD_DIR/.build_version"
           fi
+          test -f khayel/android/build/build.gradle && echo "OK نهائي: build.gradle موجود" || (echo "فشل نهائي" && exit 1)
 
-          find "$BUILD_DIR" -name "project.godot" -delete
-
-          VERSION=$(cat "$TEMPLATE_PATH/version.txt" 2>/dev/null || echo "4.7.stable.official")
-          printf "%s" "$VERSION" > "$BUILD_DIR/.build_version"
-
-          test -f "$BUILD_DIR/build.gradle" && echo "OK: build.gradle موجود في المسار الصحيح" || (echo "FAILED: لم يُعثر عليه" && exit 1)
       - name: Force Reimport
         run: |
-          xvfb-run ./godot --headless --path "khayel" --import --quit-after 5000 2>&1 || true
+          godot --headless --path "khayel" --import --quit-after 5000 2>&1 || true
           echo "Import done"
 
       - name: Diagnose
         run: |
-          echo "=== editor_settings ==="
-          grep android ~/.config/godot/editor_settings-4.7.tres || echo "NOT FOUND"
-
           echo "=== android/build contents ==="
           ls -la khayel/android/build/ | head -30
-
           echo "=== export_presets.cfg ==="
           grep -E "gradle|export_path|keystore|use_gradle" khayel/export_presets.cfg || echo "NOT FOUND"
 
       - name: Build APK
         run: |
-          APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
+          APK_PATH="$(pwd)/build/android/Khayel_Final.apk"
           mkdir -p "$(dirname $APK_PATH)"
-
           cd khayel
-          
-          # التحقق من استقرار الملفات قبل البناء
           test -f "android/build/build.gradle" && echo "EXISTS at export time" || echo "MISSING at export time"
-
-          # تصدير التطبيق مباشرة مع تحويل المخرجات إلى ملف لوج لمراقبة المعالجة
-          xvfb-run ../godot --headless --path "." \
-            --export-release "Android" "$APK_PATH" 2>&1 | tee ../build_log.txt
+          godot --headless --path "." --export-release "Android" "$APK_PATH" 2>&1 | tee ../build_log.txt
           cd ..
-
-
 
       - name: Verify APK Exists
         run: |
-          APK_PATH="/home/runner/work/$(basename $GITHUB_REPOSITORY)/$(basename $GITHUB_REPOSITORY)/build/android/Khayel_Final.apk"
+          APK_PATH="$(pwd)/build/android/Khayel_Final.apk"
           if [ ! -f "$APK_PATH" ]; then
             echo "APK not found!"
             cat build_log.txt
