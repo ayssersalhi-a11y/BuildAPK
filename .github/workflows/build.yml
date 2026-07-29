@@ -26,8 +26,7 @@ jobs:
         run: |
           rm -rf khayel khayel.zip
           gdown "https://drive.google.com/file/d/1nZ1kDsaIngEVLFH44RQ-BH0QKvu2aJ7g/view?usp=drivesdk" -O khayel.zip
-          unzip -qo khayel.zip -d .
-
+          unzip -qo -O UTF-8 khayel.zip -d . || [ $? -eq 1 ]
       - name: Clean Old Cache
         run: |
           rm -rf khayel/.godot
