@@ -15,7 +15,12 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
+      - name: Setup Godot Home
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/
+          mkdir -p ~/.config/
+          mv /root/.config/godot ~/.config/godot
+          mv /root/.local/share/godot/export_templates/4.7.stable ~/.local/share/godot/export_templates/4.7.stable
       - name: Install Dependencies
         run: |
           apt-get update
