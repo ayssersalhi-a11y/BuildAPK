@@ -19,8 +19,8 @@ jobs:
       - name: Install Dependencies
         run: |
           apt-get update
-          apt-get install -y wget unzip sed
-          pip install --upgrade gdown --break-system-packages
+          apt-get install -y wget unzip sed python3 python3-pip
+          pip3 install --upgrade gdown --break-system-packages
 
       - name: Download & Extract Project
         run: |
